@@ -1,0 +1,4 @@
+{
+  "//": "Features that passed the benchmark and are on by default. LEAN_FEATURES (comma or + separated) overrides this list.",
+  "enabled": ["repomap", "batchedit", "contextguard"]
+}

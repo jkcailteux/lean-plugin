@@ -1,0 +1,12 @@
+{
+  "name": "lean-marketplace",
+  "owner": { "name": "jethro" },
+  "description": "Starter marketplace for the lean Claude Code plugin.",
+  "plugins": [
+    {
+      "name": "lean",
+      "source": "./plugins/lean",
+      "description": "Token-lean tools: batched file reads, compact command output, and tool-usage stats."
+    }
+  ]
+}

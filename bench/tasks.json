@@ -1,0 +1,54 @@
+[
+  {
+    "id": "explore",
+    "prompt": "Explain how this app is structured: the entry point, the main modules, and how data flows from the external APIs to the UI. Cite file paths with line numbers. Keep the answer under 200 words.",
+    "allowed": "Read,Grep,Glob,mcp__plugin_lean_tools__MultiRead,mcp__plugin_lean_tools__Outline,mcp__plugin_lean_tools__ReadSymbol"
+  },
+  {
+    "id": "trace",
+    "prompt": "List every function exported from src/lib/cache.ts and, for each one, every file that calls it, with file:line for each call site. Be complete; do not guess.",
+    "allowed": "Read,Grep,Glob,mcp__plugin_lean_tools__MultiRead,mcp__plugin_lean_tools__Outline,mcp__plugin_lean_tools__ReadSymbol",
+    "expect": ["cacheGet", "cacheSet", "cacheDelete", "cacheGetAt", "snapshotToPostgres", "updateStatus"]
+  },
+  {
+    "id": "edit",
+    "prompt": "In src/lib/api-clients, make every fetch() call use a 10-second timeout by passing signal: AbortSignal.timeout(10000) in its options (add an options object where there is none, and keep existing options). Skip calls that already pass a signal. Make the edits directly; don't run any build or test commands. Reply with one line saying how many calls you changed.",
+    "allowed": "Read,Grep,Glob,Edit,Write,mcp__plugin_lean_tools__MultiRead,mcp__plugin_lean_tools__Outline,mcp__plugin_lean_tools__ReadSymbol,mcp__plugin_lean_tools__BatchEdit",
+    "check": "node -e \"const fs=require('fs'),d='src/lib/api-clients';let bad=[];for(const f of fs.readdirSync(d)){const s=fs.readFileSync(d+'/'+f,'utf8');const n=(s.match(/\\bfetch\\(/g)||[]).length,t=(s.match(/signal:/g)||[]).length;if(t<n)bad.push(f+' '+t+'/'+n)}if(bad.length){console.log('missing: '+bad.join(', '));process.exit(1)}\""
+  },
+  {
+    "id": "f-tests",
+    "repo": "fixture",
+    "prompt": "Run the test suite with `npm test`. One test fails. Find and fix the bug in the source code (do not change any tests), then run `npm test` again to confirm everything passes. Reply with one line describing the fix.",
+    "allowed": "Read,Grep,Glob,Edit,Write,Bash(npm test:*),Bash(node --test:*),mcp__plugin_lean_tools__MultiRead,mcp__plugin_lean_tools__RunCompact,mcp__plugin_lean_tools__ReadSymbol,mcp__plugin_lean_tools__BatchEdit",
+    "check": "npm test >/dev/null 2>&1 && git diff --quiet HEAD -- test/"
+  },
+  {
+    "id": "f-data",
+    "repo": "fixture",
+    "prompt": "Answer from the files in data/: (1) How many orders in data/orders.json have status \"refunded\"? (2) Which error code appears most often in data/server.log, and how many times? Reply with just the two answers.",
+    "allowed": "Read,Grep,Glob,Bash(jq:*),Bash(grep:*),Bash(wc:*),Bash(sort:*),Bash(uniq:*),Bash(head:*),Bash(node -e:*),mcp__plugin_lean_tools__MultiRead",
+    "expect": ["\\b361\\b", "E2001", "\\b212\\b"]
+  },
+  {
+    "id": "f-symbol",
+    "repo": "fixture",
+    "prompt": "Explain step by step what computeTotals in src/engine.js does, including what each helper it calls does (shipping, tax, discount, rules). Cite line numbers.",
+    "allowed": "Read,Grep,Glob,mcp__plugin_lean_tools__MultiRead,mcp__plugin_lean_tools__Outline,mcp__plugin_lean_tools__ReadSymbol",
+    "expect": ["shippingFor", "taxFor", "applyDiscount", "\\b75\\b", "0\\.?2\\b|20\\s*%"]
+  },
+  {
+    "id": "f-grep",
+    "repo": "fixture",
+    "prompt": "Find where formatCurrency is defined and every place in the source code that calls it. Give file:line for each.",
+    "allowed": "Read,Grep,Glob,mcp__plugin_lean_tools__MultiRead,mcp__plugin_lean_tools__Outline,mcp__plugin_lean_tools__ReadSymbol",
+    "expect": ["money\\.js", "orders\\.js", "report\\.js", "engine\\.js"]
+  },
+  {
+    "id": "f-multistep",
+    "repo": "fixture",
+    "prompt": "Make these changes one at a time, running `npm test` after each and fixing anything that breaks before moving on: (1) one test currently fails; fix the bug in src/ that causes it, without changing tests; (2) add an optional second parameter `currency` to formatCurrency in src/money.js, default \"USD\"; \"EUR\" uses a € prefix instead of $; (3) make buildReport in src/report.js pass each order's `currency` field to formatCurrency (the TOTAL line stays USD); (4) add a test for EUR formatting to test/money.test.js. Reply with one line when everything passes.",
+    "allowed": "Read,Grep,Glob,Edit,Write,Bash(npm test:*),Bash(node --test:*),mcp__plugin_lean_tools__MultiRead,mcp__plugin_lean_tools__RunCompact,mcp__plugin_lean_tools__ReadSymbol,mcp__plugin_lean_tools__BatchEdit",
+    "check": "npm test >/dev/null 2>&1 && grep -q EUR test/money.test.js && grep -q currency src/report.js && git diff --quiet HEAD -- test/engine.test.js test/report.test.js"
+  }
+]

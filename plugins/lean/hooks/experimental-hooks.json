@@ -1,0 +1,28 @@
+{
+  "//": "Opt-in hooks for the experimental features (readcache, bigread, datapeek, junkfilter, bashcompact). They passed their mechanism tests but did not improve benchmarks, and each adds ~55 ms per matching tool call. To try them: merge these entries into hooks/hooks.json and list the features in features.json or LEAN_FEATURES.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Read|Grep|Bash",
+        "hooks": [
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/pre-tool.mjs\"" }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Read",
+        "hooks": [
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/post-tool.mjs\"" }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          { "type": "command", "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/post-tool.mjs\"" }
+        ]
+      }
+    ]
+  }
+}

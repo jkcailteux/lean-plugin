@@ -1,0 +1,6 @@
+{
+  "name": "lean",
+  "version": "0.1.0",
+  "description": "Token-lean tools: batched file reads, compact command output, and tool-usage stats.",
+  "author": { "name": "jethro" }
+}
