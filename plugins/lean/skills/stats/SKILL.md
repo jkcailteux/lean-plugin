@@ -1,12 +1,13 @@
 ---
 name: stats
 description: Show what recent Claude Code sessions in this project cost, which tools produced the most output (context/tokens), and how many tokens, dollars and seconds lean saved. Use when asked about token usage, cost, time saved, tool usage, or what is eating context.
+allowed-tools: Bash(node:*)
 ---
 
-Call `mcp__plugin_lean_tools__UsageStats`. It covers the last 24 hours by default; pass `sinceHours` if the user names another window.
+!`node "${CLAUDE_SKILL_DIR}/../../scripts/stats.mjs" $ARGUMENTS`
 
-Show the spend line and the tables it returns. The "What lean saved" table is an estimate (tool calls compared with the built-in tool doing the same job, and context-guard warnings the user followed with /compact); say so, say that dollars are API list prices (usage-limit headroom on a subscription), and point to `bench/bench.mjs` (see README "Benchmark") for a measured comparison. Then name the one or two tools with the largest share and suggest a concrete way to trim each one, for example:
+The report above is already computed (the number after /lean:stats, if any, is the window in hours). Answer in this one reply without calling any tool. If the report is missing, call `mcp__plugin_lean_tools__UsageStats` instead (pass `sinceHours` if the user named a window).
 
-- Long test or build output: use `RunCompact` instead of Bash.
-- Large file reads: use `MultiRead` with `start`/`end` line ranges.
-- Many small lookups: delegate them to the `lean:scout` agent.
+Show the spend line and both tables as they are. Then, in at most four short lines:
+- The "What lean saved" table is an estimate and $ are API list prices (usage-limit headroom on a subscription); `node bench/bench.mjs` gives a measured comparison.
+- Name the one or two tools with the largest share and one concrete trim for each, e.g. long test/build output → `RunCompact`; large file reads → `MultiRead` with `start`/`end`; many small lookups → the `lean:scout` agent.

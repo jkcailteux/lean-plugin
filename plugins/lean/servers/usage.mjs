@@ -163,7 +163,7 @@ const tok = (c) => fmt(c / 4);
 const usd = (d) => `$${d < 10 ? d.toFixed(2) : fmt(d)}`;
 const dur = (ms) => (ms < 90_000 ? `${Math.round(ms / 1000)}s` : ms < 5_400_000 ? `${(ms / 60_000).toFixed(1)} min` : `${(ms / 3_600_000).toFixed(1)} h`);
 
-export function usageStats(root, savingsLog, { sinceHours = 24 } = {}) {
+export function usageStats(root, savingsLog, { sinceHours = 24, maxTools = Infinity } = {}) {
   const since = Date.now() - sinceHours * 3600_000;
   const { dir, byTool, sessions, turnMs } = scan(root, since);
   const out = [];
@@ -176,6 +176,12 @@ export function usageStats(root, savingsLog, { sinceHours = 24 } = {}) {
   if (byTool.size) {
     const rows = [...byTool].sort((a, b) => b[1].chars - a[1].chars);
     const total = rows.reduce((n, [, a]) => n + a.chars, 0);
+    // Fold the tail into one row so a short report stays short.
+    if (rows.length > maxTools) {
+      const rest = rows.splice(maxTools - 1);
+      const sum = (k) => rest.reduce((n, [, a]) => n + a[k], 0);
+      rows.push([`${rest.length} more tools`, { calls: sum("calls"), chars: sum("chars") }]);
+    }
     out.push(
       "",
       "Tool output by tool (≈ tokens = chars / 4)",
