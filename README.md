@@ -2,6 +2,8 @@
 
 Every feature in this plugin was benchmarked against vanilla Claude Code and kept only if it measurably helped. See [REPORT.md](REPORT.md) for what was tried, what won, what lost, and by how much, or the [project site](https://jkcailteux.github.io/lean-plugin/) for the short version.
 
+**Open source (MIT), free, no telemetry.** lean makes no network calls: no analytics, no phone-home, no account. Everything it stores stays on your machine in `~/.claude/lean/`.
+
 ## What you get (on by default)
 
 | Feature | How it works | Measured effect |
@@ -40,6 +42,13 @@ Each passes its mechanism tests; none improved benchmarks or matched real usage.
 | `bashcompact` | Rewrites test/build Bash commands through the compactor | Redundant with RunCompact, which Claude already uses |
 | `slim` | Hides the core tools | Experiment: made things worse |
 | `unstable` | Adds a timestamp to session context | Experiment: prompt-cache effect, none measured |
+
+## Privacy: no telemetry
+
+- The plugin contains no network code. It never sends data anywhere.
+- The only commands it runs on its own are local `git ls-files` and `git rev-parse` for the repo map. RunCompact runs the commands Claude asks it to, like any shell tool.
+- Local files: `~/.claude/lean/` holds the savings log, per-session hook state and the repo-map cache. Delete it any time.
+- `/lean:stats` reads the transcripts Claude Code already keeps in `~/.claude/projects/` and prints the result in your session. Nothing leaves your machine.
 
 ## Install in Claude Code
 
@@ -114,3 +123,7 @@ plugins/lean/
   test/                        mechanism tests
 bench/                         benchmark harness, tasks, fixture, analysis, results
 ```
+
+## License
+
+[MIT](LICENSE). Free to use, modify and redistribute.

@@ -129,6 +129,18 @@ nav .links .hide-sm { display: none; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 6px 20px var(--glow); }
 .btn:hover { transform: translateY(-1px); }
 
+/* badges */
+.badges { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 24px; color: var(--ink-2); font-size: 14px; }
+.badges span { display: inline-flex; align-items: center; gap: 6px; }
+.badges svg { color: var(--accent-ink); flex: none; }
+
+/* open section */
+.open { display: grid; gap: 16px; margin-top: 40px; }
+@media (min-width: 860px) { .open { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.open .card { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 24px; min-width: 0; }
+.open .card .icon { width: 40px; height: 40px; border-radius: 10px; background: var(--accent-wash); color: var(--accent-ink); display: grid; place-items: center; margin-bottom: 16px; }
+.open .card p { color: var(--ink-2); margin: 10px 0 0; font-size: 15px; }
+
 /* stat tiles */
 .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 56px; }
 @media (min-width: 860px) { .tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; } }
@@ -272,6 +284,12 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: 
     <div class="cta">
       <a class="btn primary" href="#install">Install in 30 seconds →</a>
       <a class="btn" href="#results">See the numbers</a>
+    </div>
+    <div class="badges">
+      <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>Open source · MIT</span>
+      <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>No telemetry</span>
+      <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>Zero dependencies</span>
+      <span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>Free forever</span>
     </div>
 
     <div class="tiles" role="list">
@@ -450,7 +468,32 @@ prompt again to go ahead anyway.</pre>
   </div>
 </section>
 
-<section id="install" style="padding-top:24px">
+<section id="open" style="background:var(--surface-2); border-top:1px solid var(--line); border-bottom:1px solid var(--line)">
+  <div class="wrap">
+    <div class="eyebrow">Free. Open. Local.</div>
+    <h2>Your code and your usage stay yours.</h2>
+    <p class="lede">lean exists to make Claude Code cheaper for everyone, so it's free, open source and private by design.</p>
+    <div class="open">
+      <div class="card">
+        <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg></div>
+        <h3>Open source, MIT</h3>
+        <p>Use it, fork it, ship it inside your own tools. The plugin, the benchmark harness, the tasks and every raw result are in the repository.</p>
+      </div>
+      <div class="card">
+        <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M9 12l2 2 4-4"/></svg></div>
+        <h3>No telemetry</h3>
+        <p>There is no network code in the plugin at all: no analytics, no phone-home, no account. <code>/lean:stats</code> reads the transcripts Claude Code already keeps on your disk and prints the result in your session.</p>
+      </div>
+      <div class="card">
+        <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8l-9-5-9 5v8l9 5z"/><path d="M3.3 7L12 12l8.7-5M12 22V12"/></svg></div>
+        <h3>Zero dependencies</h3>
+        <p>Plain Node scripts and one MCP server file. No npm install, no background daemon. Its only files live in <code>~/.claude/lean/</code>, and you can delete them any time.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="install" style="padding-top:72px">
   <div class="wrap">
     <div class="eyebrow">Install</div>
     <h2>Thirty seconds to fewer turns.</h2>
@@ -472,13 +515,13 @@ prompt again to go ahead anyway.</pre>
 { "autoCompactWindow": 200000 }<button class="copy">Copy</button></div>
       </div>
     </div>
-    <p class="footnote">Run the first two inside Claude Code. The source repository is private while lean is in preview.</p>
+    <p class="footnote">Run the first two inside Claude Code. lean is open source under the MIT license; the repository is private during the preview and opens at launch.</p>
   </div>
 </section>
 
 <footer>
   <div class="wrap">
-    <span>lean · a Claude Code plugin · built and benchmarked with Claude Code</span>
+    <span>lean · a Claude Code plugin · MIT licensed · no telemetry</span>
     <span>Numbers from <span class="mono">REPORT.md</span> and <span class="mono">bench/results</span></span>
   </div>
 </footer>

@@ -1,6 +1,10 @@
 {
   "name": "lean",
   "version": "0.1.0",
-  "description": "Token-lean tools: batched file reads, compact command output, and tool-usage stats.",
-  "author": { "name": "jethro" }
+  "description": "Benchmarked token and turn savings for Claude Code: repo map, BatchEdit, context guard, batched reads, compact command output, and usage stats. No telemetry.",
+  "author": { "name": "Jeff Cailteux" },
+  "homepage": "https://jkcailteux.github.io/lean-plugin/",
+  "repository": "https://github.com/jkcailteux/lean-plugin",
+  "license": "MIT",
+  "keywords": ["tokens", "cost", "performance", "context", "benchmark"]
 }
