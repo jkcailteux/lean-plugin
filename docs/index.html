@@ -339,7 +339,7 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: 
         <div class="tablewrap"><table id="tbl"></table></div>
       </details>
     </div>
-    <p class="footnote">Mean of 2 runs per task per arm. With this few runs a single task can swing 10–50% by chance, so read the pattern, not one bar. The honest outlier: on a one-shot grep (~$0.07), lean's fixed overhead of a repo map plus tool definitions costs about a cent more.</p>
+    <p class="footnote">Mean of 2 runs per task per arm; trace callers, big data files and one grep were re-run and show the mean of 8. With 2 runs a single task can swing 10–50% by chance (trace's earlier +30% time was one slow session), so read the pattern, not one bar. The honest outlier: on a one-shot grep (~$0.07), lean's fixed overhead of a repo map plus tool definitions costs about a cent more.</p>
 
     <div class="spot">
       <div class="card">
@@ -542,15 +542,16 @@ carry a summary instead of all ~340k tokens.</pre>
 
 <script>
 // Confirmation run of the shipping build: mean of 2 runs per task per arm (bench/results/2026-11-01T18-10-07_base-vs-final).
+// Trace callers, big data files and one grep were re-run: mean of 8 runs pooled from 17-57-06, 18-10-07 and 22-54-17.
 const TASKS = [
   { name: "Multi-file edit", sub: "timeout on every fetch()", cost: [0.338, 0.234], turns: [29.5, 6.0], wall: [46, 23] },
   { name: "Symbol in a 2k-line file", sub: "explain computeTotals", cost: [0.335, 0.176], turns: [8.5, 5.0], wall: [35, 26] },
   { name: "Explore a codebase", sub: "structure and data flow", cost: [0.162, 0.156], turns: [4.0, 2.0], wall: [19, 12] },
   { name: "Multi-step change", sub: "edit, test, repeat", cost: [0.184, 0.164], turns: [11.0, 11.0], wall: [29, 20] },
-  { name: "Trace callers", sub: "every export and its callers", cost: [0.193, 0.182], turns: [4.0, 4.5], wall: [19, 25] },
+  { name: "Trace callers", sub: "every export and its callers", cost: [0.198, 0.208], turns: [4.4, 4.3], wall: [21, 21] },
   { name: "Fix a failing test", sub: "run suite, find bug", cost: [0.119, 0.118], turns: [6.0, 5.0], wall: [16, 12] },
-  { name: "Query big data files", sub: "2 MB JSON, 30k-line log", cost: [0.124, 0.131], turns: [9.0, 7.0], wall: [13, 15] },
-  { name: "One grep", sub: "find a function's callers", cost: [0.072, 0.084], turns: [2.0, 2.0], wall: [12, 9] },
+  { name: "Query big data files", sub: "2 MB JSON, 30k-line log", cost: [0.137, 0.119], turns: [9.1, 5.6], wall: [17, 16] },
+  { name: "One grep", sub: "find a function's callers", cost: [0.075, 0.084], turns: [2.4, 2.1], wall: [12, 10] },
 ];
 const METRIC = {
   cost: { label: "Cost", fmt: (v) => "$" + v.toFixed(3) },

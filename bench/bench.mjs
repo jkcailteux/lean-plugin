@@ -12,7 +12,9 @@
 // "Vanilla" means user settings, user plugins, user hooks and claude.ai connectors are all off
 // (--setting-sources project,local + ENABLE_CLAUDEAI_MCP_SERVERS=false), in every arm.
 // Each arm works in its own throwaway clone of the repo, reset after every run, and arms run
-// in parallel so API drift hits them equally. Costs real money: tasks x arms x runs sessions.
+// in parallel so API drift hits them equally. Costs real money: tasks x arms x runs sessions,
+// plus one unscored warm-up session per arm per repo (--warmup 0 to skip). The warm-up pays the
+// cold prompt-cache write, which otherwise lands on whichever scored session happens to run first.
 import { spawn, execFileSync } from "node:child_process";
 import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -28,6 +30,7 @@ const args = Object.fromEntries(
 );
 const repoSrc = resolve((args.repo ?? "~/Documents/GitHub/CommandConsole").replace(/^~/, homedir()));
 const runs = Number(args.runs ?? 3);
+const warmup = args.warmup !== "0";
 // "name", "name=f1+f2", optionally "@task1+task2" to run only those tasks in that arm.
 const arms = (args.arms ?? "base,lean").split(",").map((s) => {
   const [spec, only] = s.split("@");
@@ -90,6 +93,18 @@ async function runArm(arm) {
   };
   const armTasks = arm.only ? tasks.filter((t) => arm.only.includes(t.id)) : tasks;
   const rows = [];
+  if (warmup) {
+    // One per repo: the fixture and the main repo get different repo maps, so different prompt prefixes.
+    const firstPerRepo = [...new Map(armTasks.map((t) => [t.repo === "fixture" ? "fixture" : "main", t])).values()];
+    for (const task of firstPerRepo) {
+      const clone = cloneFor(task);
+      const res = await claude(arm, task, clone, `${arm.name}-${task.id}-warmup`);
+      git(clone, "reset", "-q", "--hard");
+      git(clone, "clean", "-q", "-fd");
+      warmupSpend += res.total_cost_usd ?? 0;
+      console.error(`${arm.name}-${task.id}-warmup: unscored $${(res.total_cost_usd ?? 0).toFixed(3)}`);
+    }
+  }
   for (let r = 1; r <= runs; r++) {
     for (const task of armTasks) {
       const clone = cloneFor(task);
@@ -118,7 +133,8 @@ async function runArm(arm) {
   return rows;
 }
 
-console.error(`repo ${repoSrc} @ ${commit} · arms ${arms.map((a) => a.name).join(", ")} · ${tasks.length} tasks x ${runs} runs\nresults: ${outDir}\n`);
+let warmupSpend = 0;
+console.error(`repo ${repoSrc} @ ${commit} · arms ${arms.map((a) => a.name).join(", ")} · ${tasks.length} tasks x ${runs} runs${warmup ? " + warm-up" : ""}\nresults: ${outDir}\n`);
 const rows = (await Promise.all(arms.map(runArm))).flat();
 
 // ---------- summary ----------
@@ -140,7 +156,7 @@ const ref = arms[0].name;
 const lines = [
   `# Benchmark ${stamp}`,
   "",
-  `Repo \`${repoSrc}\` @ \`${commit}\` · ${runs} runs per task per arm · arms: ${arms.map((a) => (a.features !== undefined ? `${a.name} (${a.features || "no features"})` : a.name)).join(", ")} · % change vs **${ref}**`,
+  `Repo \`${repoSrc}\` @ \`${commit}\` · ${runs} runs per task per arm${warmup ? " after an unscored warm-up" : ""} · arms: ${arms.map((a) => (a.features !== undefined ? `${a.name} (${a.features || "no features"})` : a.name)).join(", ")} · % change vs **${ref}**`,
   "",
 ];
 const section = (title, armList, pick) => {
@@ -172,7 +188,7 @@ for (const t of tasks) {
   const armList = arms.filter((a) => rows.some((x) => x.arm === a.name && x.task === t.id));
   if (armList.length) section(`Task: ${t.id}`, armList, (arm) => rows.filter((x) => x.arm === arm && x.task === t.id));
 }
-lines.push(`Total spend: $${num(rows.reduce((a, x) => a + (x.res.total_cost_usd ?? 0), 0), 2)}`);
+lines.push(`Total spend: $${num(rows.reduce((a, x) => a + (x.res.total_cost_usd ?? 0), 0) + warmupSpend, 2)}${warmup ? ` (warm-up $${num(warmupSpend, 2)})` : ""}`);
 
 const summary = lines.join("\n");
 writeFileSync(join(outDir, "summary.md"), summary + "\n");
