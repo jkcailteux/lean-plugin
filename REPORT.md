@@ -17,7 +17,7 @@ Why two numbers: benchmark tasks are short (2-30 turns), but your real sessions 
 |---|---|---|
 | **Repo map** (SessionStart, ~1.3k tokens, `symbol:line`) | Round 1 vs lean: explore -20% cost / -54% turns, trace -8% (skipped reading `cache.ts`). Composite: explore -16%, f-symbol **-60%** | Exploration and "where is X" work: -15% to -60% per task |
 | **BatchEdit** (MCP tool) | Big round: edit task turns 25 -> 5.3 (-79%), wall -39%. Composite: edit **-37% cost, -82% turns**, -50% wall. 0 failed calls in 9 uses | Multi-file edits: about -35% cost, -50% wall. In your history, back-to-back edits are 500 turns = up to **3.1% of spend** in context re-reads alone |
-| **Context guard** (UserPromptSubmit) | Mechanism: 3 unit tests + live test (blocks once with 0 turns, second send goes through). Value: simulated on your history | **-38% to -45%** of spend *if you /compact when prompted* (20-25 idle resumes of huge contexts in your history) |
+| **Context guard** (UserPromptSubmit) | Mechanism: 3 unit tests + live test. Warns once per idle gap; the prompt always goes through (it first shipped as a one-time block, changed to a warning on request). Value: simulated on your history | **-36% to -42%** of spend *if you /compact when warned* (20-25 idle resumes of huge contexts in your history; a block that let you compact first simulated at -38% to -45%) |
 | **MultiRead, RunCompact** (core tools) | Removing them ("slim") cost +10% and quadrupled exploration turns. RunCompact turns a 320-test run from ~4k tokens to ~300 | Keeps reads batched and test output small |
 | **Recommended setting** `autoCompactWindow: 200000` (not a plugin feature) | Simulated: 400k -36% to -43%, 300k -44% to -53%, **200k -50% to -60%**, 150k barely better than 200k but 2x the compactions | The single biggest lever. Trade-off: compaction loses older detail |
 
@@ -41,7 +41,7 @@ Why two numbers: benchmark tasks are short (2-30 turns), but your real sessions 
 ## Efficiency review of what we kept
 
 - **No per-tool-call hooks.** The first version ran two node hooks on every tool call (~55 ms each, ~8 minutes across your history's 8,651 calls) for features that turned out not to help. Default hooks now run once per session and once per prompt. The experimental hooks moved to an opt-in file.
-- **UsageStats reads Claude Code's own transcripts** instead of logging every call through a hook: zero overhead, and exact. It also prices every turn at API list prices and turns lean's savings into dollars and model time (matched per tool call; guard blocks are credited only when a `/compact` follows). The repo map's effect is not visible per session and is left to the benchmark.
+- **UsageStats reads Claude Code's own transcripts** instead of logging every call through a hook: zero overhead, and exact. It also prices every turn at API list prices and turns lean's savings into dollars and model time (matched per tool call; guard warnings are credited only when a `/compact` follows). The repo map's effect is not visible per session and is left to the benchmark.
 - **Repo map** is cached per git HEAD (45 ms to build, instant after), needs no trimming (asset files are only 2.6% of it), and is **not re-injected on resume** (it's already in the transcript).
 - **BatchEdit** returns one line ("N of M edits applied") and is all-or-nothing per file; 0 failures observed.
 - **Context guard** reads only the last 4 MB of the transcript, so it stays fast on huge sessions, and never fires twice for the same idle gap.

@@ -10,7 +10,7 @@ Every feature in this plugin was benchmarked against vanilla Claude Code and kep
 |---|---|---|
 | **Repo map** | SessionStart hook injects a ~1.3k-token map of the repo (files + top-level symbols as `name:line`), cached per git HEAD. | Exploration: -54% turns, -20% cost. Lookups: skips reading whole files to find symbols. |
 | **BatchEdit** | MCP tool: many exact search/replace edits across files in one call, no prior Read needed, all-or-nothing per file. | Multi-file edits: -82% turns, -37% cost, -50% wall time. |
-| **Context guard** | UserPromptSubmit hook. Resuming a 150k+ token session after the 1-hour prompt cache expired: blocks that one prompt and suggests `/compact` (send again to go ahead). Past 250k tokens: a one-time tip. | Simulated on real history: -38% to -45% of spend if you compact when prompted. |
+| **Context guard** | UserPromptSubmit hook. Resuming a 150k+ token session after the 1-hour prompt cache expired: a one-time warning suggesting `/compact` after that reply (the prompt is never held). Past 250k tokens: a one-time tip. | Simulated on real history: -36% to -42% of spend if you compact when warned. |
 | **MultiRead** | MCP tool: several files or line ranges in one call. | Removing it raised cost 10% and exploration turns 4x. |
 | **RunCompact** | MCP tool: runs tests/builds and returns only exit status, failures with context, and the tail. | A 320-test run: ~4k tokens down to ~300. |
 | **UsageStats** + `/lean:stats` | This project's recent cost at API prices, per-tool output sizes, and what lean saved in tokens, round trips, dollars and model time (tool calls and guard-prompted `/compact`s). | Visibility only; savings are estimates. |
@@ -80,9 +80,9 @@ Restart Claude Code. Check it loaded with `/plugin` (lean should be enabled) and
 - `.claude/lean-notes.md` in a project: injected into every session there.
 - Context guard thresholds: `LEAN_GUARD_IDLE_MIN` (default 58), `LEAN_GUARD_MIN_CTX` (150000), `LEAN_GUARD_LARGE_CTX` (250000).
 - Files live in `~/.claude/lean/` (savings log, hook state, repo-map cache). Delete the folder any time. Usage stats come from Claude Code's own transcripts, so nothing is logged per tool call.
-- `/lean:stats` (or "show lean stats for the last 72h") prices each turn from the transcript's token counts at API list prices, then credits lean with: output each tool kept out of context (one cache write plus a re-read on every later turn until compaction), each round trip saved (at that session's average turn cost and the median turn time), and each context-guard block that was followed by `/compact`. Not counted: the repo map's shorter exploration, which only the benchmark measures. On a subscription, read the dollars as usage-limit headroom.
+- `/lean:stats` (or "show lean stats for the last 72h") prices each turn from the transcript's token counts at API list prices, then credits lean with: output each tool kept out of context (one cache write plus a re-read on every later turn until compaction), each round trip saved (at that session's average turn cost and the median turn time), and each context-guard warning that was followed by `/compact`. Not counted: the repo map's shorter exploration, which only the benchmark measures. On a subscription, read the dollars as usage-limit headroom.
 
-Default hooks run once per session (SessionStart) and once per prompt (UserPromptSubmit), never per tool call. They never grant permissions, and every block or denial says how to go ahead anyway (send or repeat the same thing).
+Default hooks run once per session (SessionStart) and once per prompt (UserPromptSubmit), never per tool call. They never grant permissions or hold a prompt. (The opt-in experimental hooks can deny a tool call; each denial says how to go ahead anyway.)
 
 ## Test
 

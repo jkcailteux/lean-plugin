@@ -370,8 +370,8 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: 
       <div class="feature">
         <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M12 8v5M12 16h.01"/></svg></div>
         <h3>Context guard</h3>
-        <p>Come back to a 300k-token session after the prompt cache expired and your next message silently re-writes all of it at the cache-write price. lean stops that one prompt and suggests <code>/compact</code>. Send again and it goes through.</p>
-        <div class="proof">−38% to −45% simulated, when you compact on the prompt</div>
+        <p>Come back to a 300k-token session after the prompt cache expired and your next message silently re-writes all of it at the cache-write price. lean tells you so, once, and suggests <code>/compact</code> so the turns after it stay small. It never holds your prompt.</p>
+        <div class="proof">−36% to −42% simulated, when you compact on the warning</div>
       </div>
       <div class="feature">
         <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-6-6-6M12 19h8"/></svg></div>
@@ -409,18 +409,17 @@ lean:RunCompact   708 tokens       <span class="g">$0.01</span></pre>
     <div class="split">
       <div>
         <p class="lede" style="margin-top:0">Every turn re-reads the entire conversation. In short benchmark tasks that's cheap. In real, long-running sessions, the turns carrying 120k+ tokens of context are where the money goes, and a session resumed after the one-hour cache expires pays to write all of it again.</p>
-        <p class="lede">So lean pairs its tools with a context policy: compact sooner, and never resume a huge stale session by accident.</p>
+        <p class="lede">So lean pairs its tools with a context policy: compact sooner, and never carry a huge stale session forward without knowing it.</p>
         <div class="kpi-line"><div class="big">−50 to −60%</div><span>simulated spend, replaying 8,158 real Claude Code turns with lean's guard plus <code>autoCompactWindow: 200000</code></span></div>
       </div>
       <div class="term" aria-label="Example context guard message">
         <div class="bar-top"><i></i><i></i><i></i></div>
 <pre><span class="m">&gt;</span> ok, next let's wire up the settings page
 <span class="y">lean:</span> this session holds ~340k tokens of context
-and has been idle 2.0h, so the prompt cache has
-expired. Sending now re-writes all ~340k tokens at
-cache-write price, and every later turn carries
-them again. Run <span class="g">/compact</span> first, or send the same
-prompt again to go ahead anyway.</pre>
+and was idle 2.0h, so the prompt cache expired and
+this turn re-writes all of it at cache-write price.
+Run <span class="g">/compact</span> after this reply so later turns
+carry a summary instead of all ~340k tokens.</pre>
       </div>
     </div>
     <p class="footnote">The simulation re-prices each recorded turn and charges every compaction a full uncached read, its summary and 30–60k tokens of re-reads afterwards. It can't price detail lost to compaction, which is the trade-off you accept.</p>

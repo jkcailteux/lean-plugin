@@ -143,9 +143,9 @@ function toolSaving(row, s, call, turnMs) {
   return { tokens, trips, cost: tokenCost + trips * perTurn, ms: trips * turnMs };
 }
 
-// What a context-guard block saved when the user compacted: without it, the next turn re-writes the
-// whole stale context and every later turn re-reads it; with it, the compaction reads the context once
-// and later turns carry only the summary.
+// What a context-guard warning saved when the user compacted soon after. The resumed turn re-wrote the
+// stale context either way, so the cache is warm: without the compaction every later turn re-reads the
+// big context; with it, the compaction reads it once and later turns carry only the summary.
 function guardSaving(row, s) {
   const boundary = s.boundaries.find((b) => b > row.t && b - row.t < 30 * 60_000);
   if (boundary === undefined) return null;
@@ -153,8 +153,8 @@ function guardSaving(row, s) {
   if (!after.length) return null;
   const { p, w, ctx: small } = after[0];
   const big = row.ctx;
-  const without = big * p.in * w + big * p.cr * (after.length - 1);
-  const withIt = big * p.in + COMPACT_SUMMARY_TOKENS * p.out + small * p.in * w + small * p.cr * (after.length - 1);
+  const without = big * p.cr * after.length;
+  const withIt = big * p.cr + COMPACT_SUMMARY_TOKENS * p.out + small * p.in * w + small * p.cr * (after.length - 1);
   return Math.max(0, without - withIt);
 }
 
@@ -199,13 +199,13 @@ export function usageStats(root, savingsLog, { sinceHours = 24 } = {}) {
     saved.set(key, a);
     return a;
   };
-  let caught = 0;
+  let warned = 0;
   let compacted = 0;
   for (const row of readLog(savingsLog, since)) {
     if (row.tool === "contextguard") {
       const s = sessions.find((x) => x.file === row.transcript);
       if (!s) continue;
-      caught++;
+      warned++;
       const cost = guardSaving(row, s);
       if (cost !== null) compacted++;
       add("context guard", { cost: cost ?? 0 });
@@ -223,7 +223,7 @@ export function usageStats(root, savingsLog, { sinceHours = 24 } = {}) {
     used.add(call);
     add(`lean:${row.tool}`, { uses: 1, ...toolSaving(row, call.s, call, turnMs) });
   }
-  if (caught) saved.get("context guard").uses = `${caught} caught, ${compacted} compacted`;
+  if (warned) saved.get("context guard").uses = `${warned} warned, ${compacted} compacted`;
 
   if (saved.size) {
     const total = [...saved.values()].reduce((n, a) => ({ cost: n.cost + a.cost, ms: n.ms + a.ms, tokens: n.tokens + a.tokens, trips: n.trips + a.trips }), { cost: 0, ms: 0, tokens: 0, trips: 0 });

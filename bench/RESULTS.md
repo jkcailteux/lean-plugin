@@ -15,7 +15,7 @@ Each candidate feature is benchmarked against the current accepted set. It joins
 | 3 | repomap vs 8 candidates (81 sessions) | see REPORT.md | batchedit: edit turns -79%; slim: +10%; readcache/bigread/datapeek/bashcompact never fired; junkfilter -43% grep output on polluted repo only | **batchedit accepted** |
 | 4 | vanilla vs lean (repomap+batchedit), 48 sessions | **-28%** | turns -47%, wall -28%, output -39%; 24/24 pass both arms | composite |
 | 5 | vanilla vs final config (no per-call hooks, + contextguard), 32 sessions | **-18%** | turns -43%, wall -25%, output -34%; 16/16 pass; edit -31%, f-symbol -47% | confirmed |
-| - | contextguard | simulated | -38% to -45% of real spend if /compact when prompted; live-tested block | **accepted** |
+| - | contextguard | simulated | -36% to -42% of real spend if /compact when warned (a block before the prompt: -38% to -45%); ships as a warning | **accepted** |
 
 ## Observations
 

@@ -3,7 +3,8 @@
 // Replays each session's per-turn usage (context size, cache writes, output) and re-prices it
 // as if the context had been compacted:
 //   window W     compact whenever context passes W tokens (Claude Code's autoCompactWindow)
-//   idle         compact when resuming after >60 min idle with context over 150k (lean's nudge)
+//   idle         compact when resuming after >60 min idle with context over 150k (a nudge that holds the prompt)
+//   idle warning compact right after that resumed turn (a warning: the stale turn is paid in full first)
 // A compaction costs one full read of the context (uncached, 1x), ~4k output tokens of summary
 // (5x), and re-writing the smaller context (2x). Afterwards every turn carries ~SUMMARY tokens
 // plus whatever the session added since, instead of the full history.
@@ -55,7 +56,7 @@ function price(turns, policy) {
   turns.forEach((tu, i) => {
     const prev = turns[i - 1];
     const sim = Math.max(SUMMARY + REREAD, tu.ctx - offset);
-    if (i > 0 && policy(tu, i, prev, sim)) {
+    if (i > 0 && policy(tu, i, prev, sim, turns)) {
       cost += sim * W.input + SUMMARY_OUT * W.out + REREAD * W.cw; // summarize, then re-read files
       offset = Math.max(0, tu.ctx - SUMMARY - REREAD);
       compactions++;
@@ -74,14 +75,17 @@ for (const p of readdirSync(root)) {
   for (const f of readdirSync(dir)) if (f.endsWith(".jsonl")) sessions.push(await turnsOf(join(dir, f)));
 }
 
+const idle = (a, b) => a?.t && b?.t && b.t - a.t > 60 * 60_000;
 const policies = {
   "as recorded": () => false,
   "idle nudge (resume >60m, ctx >150k)": (tu, i, prev, sim) => prev?.t && tu.t && tu.t - prev.t > 60 * 60_000 && sim > 150_000,
+  "idle warning (compact after the resumed turn)": (tu, i, prev, sim, turns) => i > 1 && idle(turns[i - 2], prev) && sim > 150_000,
   "autoCompactWindow 400k": (tu, i, prev, sim) => sim > 400_000,
   "autoCompactWindow 300k": (tu, i, prev, sim) => sim > 300_000,
   "autoCompactWindow 200k": (tu, i, prev, sim) => sim > 200_000,
   "autoCompactWindow 150k": (tu, i, prev, sim) => sim > 150_000,
   "200k window + idle nudge": (tu, i, prev, sim) => sim > 200_000 || (prev?.t && tu.t && tu.t - prev.t > 60 * 60_000 && sim > 150_000),
+  "200k window + idle warning": (tu, i, prev, sim, turns) => sim > 200_000 || (i > 1 && idle(turns[i - 2], prev) && sim > 150_000),
 };
 const base = sessions.reduce((s, t) => s + price(t, policies["as recorded"]).cost, 0);
 console.log(`${sessions.length} sessions, ${sessions.reduce((s, t) => s + t.length, 0)} turns; re-read penalty ${REREAD.toLocaleString("en-US")} tokens per compaction\n`);

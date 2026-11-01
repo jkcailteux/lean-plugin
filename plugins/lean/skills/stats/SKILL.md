@@ -5,7 +5,7 @@ description: Show what recent Claude Code sessions in this project cost, which t
 
 Call `mcp__plugin_lean_tools__UsageStats`. It covers the last 24 hours by default; pass `sinceHours` if the user names another window.
 
-Show the spend line and the tables it returns. The "What lean saved" table is an estimate (tool calls compared with the built-in tool doing the same job, and context-guard blocks the user followed with /compact); say so, say that dollars are API list prices (usage-limit headroom on a subscription), and point to `bench/bench.mjs` (see README "Benchmark") for a measured comparison. Then name the one or two tools with the largest share and suggest a concrete way to trim each one, for example:
+Show the spend line and the tables it returns. The "What lean saved" table is an estimate (tool calls compared with the built-in tool doing the same job, and context-guard warnings the user followed with /compact); say so, say that dollars are API list prices (usage-limit headroom on a subscription), and point to `bench/bench.mjs` (see README "Benchmark") for a measured comparison. Then name the one or two tools with the largest share and suggest a concrete way to trim each one, for example:
 
 - Long test or build output: use `RunCompact` instead of Bash.
 - Large file reads: use `MultiRead` with `start`/`end` line ranges.

@@ -241,19 +241,19 @@ function prompt(tp, features, text = "next step please") {
   };
 }
 
-test("contextguard: blocks once when resuming a big session after the cache expired", () => {
+test("contextguard: warns once, without holding the prompt, when resuming a big session after the cache expired", () => {
   const tp = transcript(120, 340_000);
   const send = prompt(tp, "contextguard");
   const first = send();
-  assert.equal(first.decision, "block");
-  assert.match(first.reason, /~340k tokens .* idle 2\.0h/);
-  assert.equal(send(), null, "same prompt again goes through");
+  assert.equal(first.decision, undefined, "the prompt is never blocked");
+  assert.match(first.systemMessage, /~340k tokens .* idle 2\.0h.*\/compact after this reply/);
+  assert.equal(send(), null, "once per idle gap");
   const logged = readFileSync(join(stateDir, "guard.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l)).filter((r) => r.transcript === tp);
-  assert.deepEqual(logged.map((r) => [r.tool, r.ctx]), [["contextguard", 340_000]], "the block is logged once for UsageStats");
+  assert.deepEqual(logged.map((r) => [r.tool, r.ctx]), [["contextguard", 340_000]], "the warning is logged once for UsageStats");
 });
 
 test("contextguard: quiet for recent turns, small contexts, /compact, and when off", () => {
-  assert.equal(prompt(transcript(10, 340_000), "contextguard")()?.decision, undefined);
+  assert.doesNotMatch(prompt(transcript(10, 340_000), "contextguard")()?.systemMessage ?? "", /idle/);
   assert.equal(prompt(transcript(120, 60_000), "contextguard")(), null);
   assert.equal(prompt(transcript(120, 340_000), "contextguard", "/compact")(), null);
   assert.equal(prompt(transcript(120, 340_000), "")(), null);
@@ -336,16 +336,18 @@ test("UsageStats: prices turns and credits lean tool calls and a guard-prompted 
       turn(20_000, "m3", { input_tokens: 0, cache_read_input_tokens: 12_000, output_tokens: 100 }),
     ].map((l) => JSON.stringify(l)).join("\n") + "\n"
   );
-  // 300k-token session resumed after 2h; the guard blocked, the user compacted to 30k, then 2 more turns.
+  // 300k-token session resumed after 2h; the guard warned, the resumed turn re-wrote 300k, the user
+  // compacted to 30k, then 21 more turns.
   const guarded = join(proj, "guarded.jsonl");
   const H2 = 2 * 3600_000;
   writeFileSync(
     guarded,
     [
       turn(0, "g1", { input_tokens: 0, cache_read_input_tokens: 300_000, output_tokens: 0 }),
+      turn(H2 + 5000, "g2", { input_tokens: 0, ...w1h(300_000), output_tokens: 0 }),
       { type: "system", subtype: "compact_boundary", timestamp: at(H2 + 60_000) },
-      turn(H2 + 70_000, "g2", { input_tokens: 0, ...w1h(30_000), output_tokens: 0 }),
-      turn(H2 + 80_000, "g3", { input_tokens: 0, cache_read_input_tokens: 30_000, output_tokens: 0 }),
+      turn(H2 + 70_000, "g3", { input_tokens: 0, ...w1h(30_000), output_tokens: 0 }),
+      ...Array.from({ length: 20 }, (_, i) => turn(H2 + 80_000 + i * 1000, `r${i}`, { input_tokens: 0, cache_read_input_tokens: 30_000, output_tokens: 0 })),
     ].map((l) => JSON.stringify(l)).join("\n") + "\n"
   );
   const log = join(home, "s.jsonl");
@@ -364,15 +366,16 @@ test("UsageStats: prices turns and credits lean tool calls and a guard-prompted 
   });
   const t = JSON.parse(r.stdout).result.content[0].text;
   assert.match(t, /2 session\(s\)/);
-  // $0.1324 + the guarded session's $0.06 + $0.24 + $0.006
-  assert.match(t, /Spent ≈ \$0\.44 at API list prices over 6 turns · median turn 5s/);
+  // $0.1324 + the guarded session's $0.06 + $2.40 (resumed turn) + $0.24 + 20 x $0.006
+  assert.match(t, /Spent ≈ \$2\.95 at API list prices over 26 turns · median turn 5s/);
   // 1,000 tokens kept out: written once at 2x input, re-read once = $0.0082; 2 round trips at $0.0441 each = $0.0883.
   assert.match(t, /\| lean:MultiRead \| 1 \| 1,000 \| 2 \| \$0\.10 \| 10s \|/);
-  // Without: 300k re-written at 2x + re-read once = $2.46. With: compaction reads 300k ($1.20) + 10k summary
-  // output ($0.20) + 30k re-written ($0.24) + re-read once ($0.006) = $1.646. Saved $0.814.
-  assert.match(t, /\| context guard \| 1 caught, 1 compacted \| – \| – \| \$0\.81 \| – \|/);
+  // The resumed turn is paid either way. Without: 21 later turns re-read 300k = $1.26. With: compaction
+  // reads 300k from cache ($0.06) + 10k summary output ($0.20) + 30k re-written ($0.24) + 20 re-reads
+  // of 30k ($0.12) = $0.62. Saved $0.64.
+  assert.match(t, /\| context guard \| 1 warned, 1 compacted \| – \| – \| \$0\.64 \| – \|/);
   assert.doesNotMatch(t, /RunCompact/, "savings from other projects are not counted here");
-  assert.match(t, /Total: ≈ \$0\.91 \(67% of what these sessions would have cost\), ≈ 10s of model time/);
+  assert.match(t, /Total: ≈ \$0\.74 \(20% of what these sessions would have cost\), ≈ 10s of model time/);
 });
 
 test("features.json: accepted features are on by default", () => {

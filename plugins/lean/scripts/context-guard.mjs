@@ -1,11 +1,10 @@
 // Feature "contextguard" (UserPromptSubmit): the biggest cost in long sessions is context size.
 //
-//   Idle resume: you come back to a big session after the 1-hour prompt cache expired. The next
-//   turn re-writes the whole context at cache-write price and every later turn carries it again.
-//   Block that one prompt (once per idle gap) and suggest /compact first; sending the same prompt
-//   again goes through.
+//   Idle resume: you come back to a big session after the 1-hour prompt cache expired. This turn
+//   re-writes the whole context at cache-write price and every later turn carries it again.
+//   Warn once per idle gap and suggest /compact after this reply. The prompt is never held.
 //
-//   Large context: the first time context passes LARGE tokens, show a one-line tip (no block).
+//   Large context: the first time context passes LARGE tokens, show a one-line tip.
 //
 // Reads only the tail of the transcript, so it stays fast on long sessions.
 import { openSync, readSync, fstatSync, closeSync, readFileSync, appendFileSync, mkdirSync } from "node:fs";
@@ -57,18 +56,17 @@ export function guard(input, now = Date.now()) {
   const st = stateFor(input);
 
   if (now - last.t >= IDLE_MS && last.ctx >= MIN_CTX) {
-    if (st.data.guardedAt === last.t) return null; // already warned for this gap: let it through
+    if (st.data.guardedAt === last.t) return null; // already warned for this gap
     st.data.guardedAt = last.t;
     st.save();
-    // UsageStats credits the block if a /compact follows it in this transcript.
+    // UsageStats credits the warning if a /compact follows it in this transcript.
     try {
       mkdirSync(dirname(SAVINGS_LOG), { recursive: true });
       appendFileSync(SAVINGS_LOG, JSON.stringify({ t: now, tool: "contextguard", ctx: last.ctx, transcript: input.transcript_path }) + "\n");
     } catch {}
     const hours = ((now - last.t) / 3_600_000).toFixed(1);
     return {
-      decision: "block",
-      reason: `lean: this session holds ~${k}k tokens of context and has been idle ${hours}h, so the prompt cache has expired. Sending now re-writes all ~${k}k tokens at cache-write price, and every later turn carries them again. Run /compact first (far cheaper from here on), or send the same prompt again to go ahead anyway.`,
+      systemMessage: `lean: this session holds ~${k}k tokens of context and was idle ${hours}h, so the prompt cache expired and this turn re-writes all of it at cache-write price. Run /compact after this reply so later turns carry a summary instead of all ~${k}k tokens.`,
     };
   }
   if (last.ctx >= LARGE && !st.data.largeTipShown) {
