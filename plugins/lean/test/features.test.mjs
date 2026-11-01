@@ -5,7 +5,7 @@
 import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, readFileSync, utimesSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, utimesSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -273,6 +273,21 @@ test("repomap: map lists files with symbol:line and stays under budget", async (
   assert.match(map, /money\.js: roundCents:2, formatCurrency:6/);
   assert.doesNotMatch(map, /orders\.json:/, "data files listed without symbols");
   assert.ok(map.length <= 8000);
+});
+
+test("repomap: dirs full of data files collapse to a count line", async () => {
+  const { repoMap } = await import(script("scripts/repo-map.mjs"));
+  const dir = mkdtempSync(join(tmpdir(), "lean-map-"));
+  mkdirSync(join(dir, "results"));
+  for (let i = 0; i < 12; i++) writeFileSync(join(dir, "results", `run-${i}.json`), "{}");
+  writeFileSync(join(dir, "results", "summary.md"), "#");
+  writeFileSync(join(dir, "results", "load.mjs"), "export function load() {}\n");
+  execFileSync("git", ["init", "-q"], { cwd: dir });
+  execFileSync("git", ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "init"], { cwd: dir });
+  const map = repoMap(dir);
+  assert.match(map, /load\.mjs: load:1/);
+  assert.match(map, /\(13 data files: 12 \.json, 1 \.md\)/);
+  assert.doesNotMatch(map, /run-0\.json/);
 });
 
 test("session start: repomap and tips follow the flags; unstable adds a timestamp", () => {

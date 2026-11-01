@@ -9,6 +9,7 @@ import { createHash } from "node:crypto";
 
 const MAX_CHARS = 8000; // about 2k tokens
 const MAX_FILE_BYTES = 200_000;
+const MAX_DATA_FILES = 8; // a dir with more non-code files than this lists them as one count line
 const SKIP = /(^|\/)(node_modules|dist|build|out|\.next|vendor|coverage|__snapshots__)\/|\.(min\.js|lock|map)$|(^|\/)(package-lock\.json|pnpm-lock\.yaml|yarn\.lock)$/;
 const CODE = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py", ".go", ".rs", ".rb", ".java", ".kt", ".swift", ".cs"]);
 
@@ -46,6 +47,13 @@ function listFiles(root) {
   return out.toString().split("\n").filter((f) => f && !SKIP.test(f));
 }
 
+// "40 .json, 2 .md": what a collapsed dir holds, most common extension first
+function countExts(files) {
+  const n = new Map();
+  for (const f of files) n.set(extname(f) || "(none)", (n.get(extname(f) || "(none)") ?? 0) + 1);
+  return [...n].sort((a, b) => b[1] - a[1]).map(([e, c]) => `${c} ${e}`).join(", ");
+}
+
 function render(root, files) {
   const byDir = new Map();
   for (const f of files) {
@@ -67,7 +75,10 @@ function render(root, files) {
     const lines = [];
     for (const [d, fs] of [...byDir].sort(([a], [b]) => a.localeCompare(b))) {
       lines.push(`${d === "." ? "(root)" : d}/`);
-      for (const f of fs.sort()) lines.push(`  ${fmt(f)}`);
+      const data = fs.filter((f) => !CODE.has(extname(f)));
+      const listed = data.length > MAX_DATA_FILES ? fs.filter((f) => CODE.has(extname(f))) : fs;
+      for (const f of listed.sort()) lines.push(`  ${fmt(f)}`);
+      if (listed !== fs) lines.push(`  (${data.length} data files: ${countExts(data)})`);
     }
     const text = lines.join("\n");
     if (text.length <= MAX_CHARS) return text;
@@ -86,7 +97,7 @@ export function repoMap(root) {
   }
   if (!files.length) return null;
 
-  const key = createHash("sha1").update(`${root}|${head}|${files.join("\n")}`).digest("hex").slice(0, 16);
+  const key = createHash("sha1").update(`v2|${root}|${head}|${files.join("\n")}`).digest("hex").slice(0, 16);
   const cacheFile = join(homedir(), ".claude", "lean", "repomap", `${key}.txt`);
   try {
     return readFileSync(cacheFile, "utf8");
