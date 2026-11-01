@@ -1,6 +1,6 @@
 # lean: a token-lean Claude Code plugin
 
-Every feature in this plugin was benchmarked against vanilla Claude Code and kept only if it measurably helped. See [REPORT.md](REPORT.md) for what was tried, what won, what lost, and by how much.
+Every feature in this plugin was benchmarked against vanilla Claude Code and kept only if it measurably helped. See [REPORT.md](REPORT.md) for what was tried, what won, what lost, and by how much, or the [project site](https://jkcailteux.github.io/lean-plugin/) for the short version.
 
 ## What you get (on by default)
 

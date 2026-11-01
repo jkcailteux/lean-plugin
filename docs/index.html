@@ -1,0 +1,578 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lean · Claude Code plugin</title>
+<meta name="description" content="A Claude Code plugin benchmarked against vanilla Claude Code: up to 28% cheaper, 47% fewer turns, 28% faster, with every task still passing.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230E9F6E'/%3E%3Cpath d='M10 7v18h12' stroke='white' stroke-width='4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+:root {
+  --bg: #fbfbf9;
+  --surface: #ffffff;
+  --surface-2: #f2f3ef;
+  --line: #e4e6e0;
+  --ink: #15171a;
+  --ink-2: #4a4f57;
+  --ink-3: #737983;
+  --accent: #0E9F6E;
+  --accent-ink: #087a54;
+  --accent-wash: rgba(14, 159, 110, 0.10);
+  --glow: rgba(14, 159, 110, 0.22);
+  --s-vanilla: #5B7BD5;
+  --s-lean: #0E9F6E;
+  --code-bg: #101418;
+  --code-ink: #e6edf3;
+  --shadow: 0 1px 2px rgba(20, 24, 30, .04), 0 8px 24px rgba(20, 24, 30, .06);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0c0e10;
+    --surface: #14171a;
+    --surface-2: #1a1e22;
+    --line: #262b30;
+    --ink: #eef1f3;
+    --ink-2: #b4bbc3;
+    --ink-3: #868e98;
+    --accent: #1FA874;
+    --accent-ink: #4fd6a2;
+    --accent-wash: rgba(31, 168, 116, 0.12);
+    --glow: rgba(31, 168, 116, 0.28);
+    --s-vanilla: #6F8EE0;
+    --s-lean: #1FA874;
+    --code-bg: #0a0d10;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .3);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0c0e10;
+  --surface: #14171a;
+  --surface-2: #1a1e22;
+  --line: #262b30;
+  --ink: #eef1f3;
+  --ink-2: #b4bbc3;
+  --ink-3: #868e98;
+  --accent: #1FA874;
+  --accent-ink: #4fd6a2;
+  --accent-wash: rgba(31, 168, 116, 0.12);
+  --glow: rgba(31, 168, 116, 0.28);
+  --s-vanilla: #6F8EE0;
+  --s-lean: #1FA874;
+  --code-bg: #0a0d10;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 24px rgba(0, 0, 0, .3);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.6 Inter, system-ui, -apple-system, Segoe UI, sans-serif;
+  overflow-x: hidden;
+}
+a { color: var(--accent-ink); }
+code, pre, .mono { font-family: "JetBrains Mono", ui-monospace, Menlo, monospace; }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+@media (min-width: 720px) { .wrap { padding: 0 32px; } }
+h1, h2, h3 { font-family: "Space Grotesk", Inter, sans-serif; letter-spacing: -0.02em; line-height: 1.1; margin: 0; }
+h2 { font-size: clamp(28px, 4.4vw, 44px); }
+h3 { font-size: 20px; }
+section { padding: 72px 0; }
+@media (min-width: 720px) { section { padding: 96px 0; } }
+.eyebrow { font: 600 13px/1 "JetBrains Mono", monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--accent-ink); margin-bottom: 16px; }
+.lede { color: var(--ink-2); font-size: 18px; max-width: 640px; margin: 16px 0 0; }
+
+/* nav */
+nav { position: sticky; top: 0; z-index: 10; backdrop-filter: saturate(1.4) blur(10px); background: color-mix(in srgb, var(--bg) 80%, transparent); border-bottom: 1px solid var(--line); }
+nav .wrap { display: flex; align-items: center; gap: 16px; height: 56px; }
+.logo { display: flex; align-items: center; gap: 10px; font: 700 20px "Space Grotesk", sans-serif; color: var(--ink); text-decoration: none; }
+.logo svg { width: 26px; height: 26px; }
+nav .links { margin-left: auto; display: flex; gap: 4px; align-items: center; }
+nav .links a { color: var(--ink-2); text-decoration: none; font-size: 14px; padding: 6px 10px; border-radius: 8px; }
+nav .links a:hover { color: var(--ink); background: var(--surface-2); }
+nav .links .hide-sm { display: none; }
+@media (min-width: 720px) { nav .links .hide-sm { display: inline-block; } }
+.theme-btn { border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); border-radius: 8px; width: 34px; height: 34px; cursor: pointer; display: grid; place-items: center; }
+.theme-btn:hover { color: var(--ink); }
+
+/* hero */
+.hero { position: relative; padding: 72px 0 56px; overflow: hidden; }
+@media (min-width: 720px) { .hero { padding: 112px 0 80px; } }
+.hero::before {
+  content: ""; position: absolute; inset: -40% -20% auto -20%; height: 520px;
+  background: radial-gradient(closest-side, var(--glow), transparent 70%);
+  pointer-events: none; z-index: 0;
+}
+.hero::after {
+  content: ""; position: absolute; inset: 0;
+  background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 48px 48px; opacity: .45;
+  mask-image: radial-gradient(ellipse at 50% 0%, black 20%, transparent 70%);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 0%, black 20%, transparent 70%);
+  pointer-events: none; z-index: 0;
+}
+.hero .wrap { position: relative; z-index: 1; }
+.pill { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; box-shadow: var(--shadow); }
+.pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--accent-wash); }
+.hero h1 { font-size: clamp(42px, 8vw, 88px); margin-top: 24px; max-width: 900px; }
+.hero h1 .hl { background: linear-gradient(100deg, var(--accent) 10%, var(--s-vanilla) 110%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.hero .lede { font-size: clamp(17px, 2.2vw, 20px); }
+.cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
+.btn { display: inline-flex; align-items: center; gap: 8px; font: 600 15px Inter, sans-serif; padding: 12px 18px; border-radius: 10px; text-decoration: none; border: 1px solid var(--line); color: var(--ink); background: var(--surface); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 6px 20px var(--glow); }
+.btn:hover { transform: translateY(-1px); }
+
+/* stat tiles */
+.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 56px; }
+@media (min-width: 860px) { .tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; } }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px; box-shadow: var(--shadow); min-width: 0; }
+@media (min-width: 720px) { .tile { padding: 22px; } }
+.tile .num { font: 700 clamp(34px, 6vw, 52px)/1 "Space Grotesk", sans-serif; letter-spacing: -0.03em; color: var(--ink); }
+.tile .num small { font-size: .45em; color: var(--ink-3); font-weight: 600; letter-spacing: 0; margin-left: 2px; }
+.tile .label { margin-top: 10px; font-weight: 600; font-size: 15px; }
+.tile .sub { color: var(--ink-3); font-size: 13px; margin-top: 2px; }
+.footnote { color: var(--ink-3); font-size: 13px; margin-top: 16px; }
+
+/* chart */
+.chart-card { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 20px 16px; box-shadow: var(--shadow); margin-top: 40px; }
+@media (min-width: 720px) { .chart-card { padding: 28px 32px; } }
+.chart-head { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 3px; }
+.seg button { font: 600 13px Inter, sans-serif; border: 0; background: transparent; color: var(--ink-2); padding: 7px 12px; border-radius: 7px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+.legend { display: flex; gap: 16px; font-size: 13px; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.rows { display: grid; gap: 18px; }
+.row { display: grid; grid-template-columns: 1fr; gap: 6px; }
+@media (min-width: 720px) { .row { grid-template-columns: 210px 1fr; gap: 16px; align-items: center; } }
+.row .name { font-size: 14px; font-weight: 600; }
+.row .name span { display: block; font-weight: 400; color: var(--ink-3); font-size: 12px; }
+.bars { display: grid; gap: 2px; position: relative; }
+.bar-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.bar { height: 14px; border-radius: 0 4px 4px 0; transition: width .5s cubic-bezier(.2,.8,.2,1); min-width: 2px; }
+.bar.v { background: var(--s-vanilla); }
+.bar.l { background: var(--s-lean); }
+.val { font: 500 12px "JetBrains Mono", monospace; color: var(--ink-3); white-space: nowrap; }
+.delta { font: 700 12px "JetBrains Mono", monospace; color: var(--ink); white-space: nowrap; }
+.delta.worse { color: var(--ink-3); font-weight: 500; }
+.row:hover .name { color: var(--accent-ink); }
+.tip { position: fixed; pointer-events: none; z-index: 20; background: var(--ink); color: var(--bg); font-size: 13px; padding: 8px 10px; border-radius: 8px; box-shadow: var(--shadow); opacity: 0; transition: opacity .12s; max-width: 260px; }
+.tip b { font-weight: 600; }
+details.table { margin-top: 24px; }
+details.table summary { cursor: pointer; color: var(--ink-2); font-size: 14px; }
+.tablewrap { overflow-x: auto; margin-top: 12px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: right; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--ink-3); font-weight: 600; }
+
+/* spotlight */
+.spot { display: grid; gap: 16px; margin-top: 40px; }
+@media (min-width: 860px) { .spot { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.spot .card { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 24px; box-shadow: var(--shadow); min-width: 0; }
+.big { font: 700 clamp(40px, 6vw, 56px)/1 "Space Grotesk", sans-serif; letter-spacing: -0.03em; }
+.big .arrow { color: var(--ink-3); font-weight: 500; margin: 0 6px; }
+.big .after { color: var(--accent-ink); }
+.card p { color: var(--ink-2); margin: 12px 0 0; font-size: 15px; }
+.card .tag { font: 600 12px "JetBrains Mono", monospace; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 14px; }
+
+/* features */
+.features { display: grid; gap: 16px; margin-top: 40px; }
+@media (min-width: 720px) { .features { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.feature { border: 1px solid var(--line); background: var(--surface); border-radius: 20px; padding: 24px; min-width: 0; }
+.feature .icon { width: 40px; height: 40px; border-radius: 10px; background: var(--accent-wash); color: var(--accent-ink); display: grid; place-items: center; margin-bottom: 16px; }
+.feature p { color: var(--ink-2); margin: 10px 0 0; font-size: 15px; }
+.feature .proof { margin-top: 14px; font: 500 13px "JetBrains Mono", monospace; color: var(--accent-ink); }
+
+/* terminal */
+.term { background: var(--code-bg); color: var(--code-ink); border-radius: 16px; overflow: hidden; border: 1px solid #222a33; box-shadow: var(--shadow); min-width: 0; }
+.term .bar-top { display: flex; gap: 6px; padding: 12px 14px; border-bottom: 1px solid #222a33; }
+.term .bar-top i { width: 10px; height: 10px; border-radius: 50%; background: #2c343d; }
+.term pre { margin: 0; padding: 16px 18px; font-size: 13px; line-height: 1.65; overflow-x: auto; white-space: pre; }
+.term .g { color: #4fd6a2; }
+.term .m { color: #8b96a3; }
+.term .y { color: #f1c56b; }
+
+/* context section */
+.split { display: grid; gap: 32px; margin-top: 40px; align-items: start; }
+@media (min-width: 900px) { .split { grid-template-columns: 1fr 1fr; gap: 48px; } }
+.kpi-line { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-top: 24px; }
+.kpi-line .big { color: var(--accent-ink); }
+.kpi-line span { color: var(--ink-2); }
+ol.steps { padding-left: 20px; color: var(--ink-2); margin: 20px 0 0; }
+ol.steps li { margin: 8px 0; }
+
+/* graveyard */
+.grave { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); gap: 12px; margin-top: 40px; }
+.tomb { border: 1px dashed var(--line); border-radius: 14px; padding: 16px; background: var(--surface-2); min-width: 0; }
+.tomb h4 { margin: 0; font: 600 15px Inter, sans-serif; display: flex; gap: 8px; align-items: center; }
+.tomb h4::before { content: "✕"; font-size: 12px; color: var(--ink-3); border: 1px solid var(--line); border-radius: 6px; width: 20px; height: 20px; display: grid; place-items: center; flex: none; }
+.tomb p { margin: 8px 0 0; font-size: 13px; color: var(--ink-3); }
+.scoreboard { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 24px; }
+.scoreboard div { font: 700 40px/1 "Space Grotesk", sans-serif; }
+.scoreboard span { display: block; font: 500 13px Inter, sans-serif; color: var(--ink-3); margin-top: 6px; }
+
+/* method */
+.method { display: grid; gap: 16px; margin-top: 32px; }
+@media (min-width: 720px) { .method { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.method div { border-top: 2px solid var(--accent); padding-top: 14px; min-width: 0; }
+.method h4 { margin: 0; font: 600 15px Inter, sans-serif; }
+.method p { margin: 6px 0 0; color: var(--ink-2); font-size: 14px; }
+
+/* install */
+.install { display: grid; gap: 16px; margin-top: 32px; }
+@media (min-width: 900px) { .install { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.step { min-width: 0; }
+.step .n { font: 700 14px "JetBrains Mono", monospace; color: var(--accent-ink); }
+.step h4 { margin: 6px 0 10px; font: 600 16px Inter, sans-serif; }
+.code { position: relative; background: var(--code-bg); color: var(--code-ink); border-radius: 12px; padding: 14px 16px; padding-right: 64px; font-size: 13px; overflow-x: auto; white-space: pre; border: 1px solid #222a33; }
+.copy { position: absolute; top: 8px; right: 8px; font: 600 12px Inter, sans-serif; background: #1d242c; color: #c9d3dc; border: 1px solid #2c3641; border-radius: 7px; padding: 5px 8px; cursor: pointer; }
+.copy:hover { color: #fff; }
+
+footer { border-top: 1px solid var(--line); padding: 32px 0 48px; color: var(--ink-3); font-size: 14px; }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: space-between; }
+
+@media (prefers-reduced-motion: reduce) { .bar { transition: none; } .btn:hover { transform: none; } }
+@media (forced-colors: active) { .bar.v { background: CanvasText; } .bar.l { background: Highlight; } }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a class="logo" href="#top" aria-label="lean home">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--accent)"/><path d="M10 7v18h12" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      lean
+    </a>
+    <div class="links">
+      <a class="hide-sm" href="#results">Results</a>
+      <a class="hide-sm" href="#inside">What's inside</a>
+      <a class="hide-sm" href="#cut">What we cut</a>
+      <a href="#install">Install</a>
+      <button class="theme-btn" id="theme" aria-label="Toggle dark mode" title="Toggle dark mode">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <span class="pill"><span class="dot"></span>Benchmarked against vanilla Claude Code · 80 sessions · every task passing</span>
+    <h1>Same Claude.<br><span class="hl">Fewer turns. Smaller bill.</span></h1>
+    <p class="lede">lean is a Claude Code plugin built the hard way: every feature had to beat vanilla Claude Code on a benchmark before it shipped. Sixteen ideas went in. Four came out. The result does the same work in about half the round trips.</p>
+    <div class="cta">
+      <a class="btn primary" href="#install">Install in 30 seconds →</a>
+      <a class="btn" href="#results">See the numbers</a>
+    </div>
+
+    <div class="tiles" role="list">
+      <div class="tile" role="listitem"><div class="num">−28<small>%</small></div><div class="label">Cost</div><div class="sub">−18% on the confirmation run</div></div>
+      <div class="tile" role="listitem"><div class="num">−47<small>%</small></div><div class="label">Turns</div><div class="sub">−43% on the confirmation run</div></div>
+      <div class="tile" role="listitem"><div class="num">−28<small>%</small></div><div class="label">Wall-clock time</div><div class="sub">−25% on the confirmation run</div></div>
+      <div class="tile" role="listitem"><div class="num">−39<small>%</small></div><div class="label">Output tokens</div><div class="sub">−34% on the confirmation run</div></div>
+    </div>
+    <p class="footnote">Two independent runs, 8 tasks each, lean vs. vanilla Claude Code on Claude Opus 5.5. Headline numbers are the first run (48 sessions); the confirmation run of the final build (32 sessions) is shown underneath. 40 of 40 lean sessions passed their checks.</p>
+  </div>
+</header>
+
+<section id="results" style="padding-top:24px">
+  <div class="wrap">
+    <div class="eyebrow">Results</div>
+    <h2>Where it wins, task by task.</h2>
+    <p class="lede">The confirmation run of the shipping build. Same tasks, same model, same repo snapshot; the only difference is the plugin. Switch the metric to see where the time and money go.</p>
+
+    <div class="chart-card">
+      <div class="chart-head">
+        <div class="seg" role="group" aria-label="Metric">
+          <button data-m="cost" aria-pressed="true">Cost</button>
+          <button data-m="turns" aria-pressed="false">Turns</button>
+          <button data-m="wall" aria-pressed="false">Wall time</button>
+        </div>
+        <div class="legend" aria-hidden="true">
+          <span><i style="background:var(--s-vanilla)"></i>Vanilla Claude Code</span>
+          <span><i style="background:var(--s-lean)"></i>With lean</span>
+        </div>
+      </div>
+      <div class="rows" id="rows"></div>
+      <details class="table">
+        <summary>Show as a table</summary>
+        <div class="tablewrap"><table id="tbl"></table></div>
+      </details>
+    </div>
+    <p class="footnote">Mean of 2 runs per task per arm. With this few runs a single task can swing 10–50% by chance, so read the pattern, not one bar. The honest outlier: on a one-shot grep (~$0.07), lean's fixed overhead of a repo map plus tool definitions costs about a cent more.</p>
+
+    <div class="spot">
+      <div class="card">
+        <div class="tag">Multi-file edit</div>
+        <div class="big">29.5<span class="arrow">→</span><span class="after">6</span></div>
+        <p>turns to add a timeout to every <code>fetch()</code> across an API client folder. BatchEdit makes every change in one call, so the job takes half the time and 31–37% less money.</p>
+      </div>
+      <div class="card">
+        <div class="tag">Find code in a big file</div>
+        <div class="big"><span class="after">−47 to −60%</span></div>
+        <p>cost to explain a function buried at line 1,958 of a 2,000-line file. The repo map hands Claude the exact line, so it reads a range instead of the whole file.</p>
+      </div>
+      <div class="card">
+        <div class="tag">Explore a codebase</div>
+        <div class="big">4<span class="arrow">→</span><span class="after">2</span></div>
+        <p>turns to explain how an app is structured, and 35% faster. Claude stops spending tokens on <code>ls</code> and <code>find</code> because the map is already in context.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="inside" style="background:var(--surface-2); border-top:1px solid var(--line); border-bottom:1px solid var(--line)">
+  <div class="wrap">
+    <div class="eyebrow">What's inside</div>
+    <h2>Four things that earned their place.</h2>
+    <p class="lede">No per-tool-call hooks, no dependencies, no background daemon. Hooks run once per session and once per prompt, and the tools are a single zero-dependency Node file.</p>
+
+    <div class="features">
+      <div class="feature">
+        <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3z"/><path d="M9 3v15M15 6v15"/></svg></div>
+        <h3>Repo map</h3>
+        <p>About 1.3k tokens at session start: every tracked file and its top-level symbols as <code>name:line</code>. Claude goes straight to the right file and line range instead of exploring. Cached per git HEAD, never re-injected on resume.</p>
+        <div class="proof">explore −50% turns · symbol lookups −47% to −60% cost</div>
+      </div>
+      <div class="feature">
+        <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h16M4 17h10"/><path d="M18 15l2 2 3-4"/></svg></div>
+        <h3>BatchEdit</h3>
+        <p>Many search-and-replace edits across many files in one call, all-or-nothing per file, with a one-line reply. No prior read needed. Every saved round trip also skips a full re-read of the conversation.</p>
+        <div class="proof">edits −80% turns · −50% wall time · 0 failed calls</div>
+      </div>
+      <div class="feature">
+        <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z"/><path d="M12 8v5M12 16h.01"/></svg></div>
+        <h3>Context guard</h3>
+        <p>Come back to a 300k-token session after the prompt cache expired and your next message silently re-writes all of it at the cache-write price. lean stops that one prompt and suggests <code>/compact</code>. Send again and it goes through.</p>
+        <div class="proof">−38% to −45% simulated, when you compact on the prompt</div>
+      </div>
+      <div class="feature">
+        <div class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17l6-6-6-6M12 19h8"/></svg></div>
+        <h3>MultiRead + RunCompact</h3>
+        <p>Read several files or line ranges in one call; run tests and builds and get back only the failures and the tail. A 320-test run shrinks from ~4,000 tokens to ~300.</p>
+        <div class="proof">removing them cost +10% and 4× the exploring turns</div>
+      </div>
+    </div>
+
+    <div class="split">
+      <div>
+        <div class="eyebrow" style="margin-top:8px">Know what you saved</div>
+        <h3 style="font-size:28px">/lean:stats</h3>
+        <p class="lede" style="font-size:16px">Reads Claude Code's own transcripts, so it costs nothing per call. It prices every turn at API list prices, shows which tools are filling your context, and turns lean's savings into dollars and seconds: tokens kept out, round trips skipped, and compactions the guard prompted.</p>
+      </div>
+      <div class="term" aria-label="Example /lean:stats output">
+        <div class="bar-top"><i></i><i></i><i></i></div>
+<pre><span class="m">&gt;</span> /lean:stats
+<span class="m">Last 24h · 1 session(s) in this project</span>
+Spent ≈ $18 at API list prices over 161 turns
+<span class="m">· median turn 5s</span>
+
+<span class="y">What lean saved (estimates)</span>
+lean:BatchEdit    10 round trips   <span class="g">$1.10</span>   <span class="g">46s</span>
+lean:RunCompact   708 tokens       <span class="g">$0.01</span></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="context">
+  <div class="wrap">
+    <div class="eyebrow">The bigger lever</div>
+    <h2>The real leak isn't tool output.<br>It's context.</h2>
+    <div class="split">
+      <div>
+        <p class="lede" style="margin-top:0">Every turn re-reads the entire conversation. In short benchmark tasks that's cheap. In real, long-running sessions, the turns carrying 120k+ tokens of context are where the money goes, and a session resumed after the one-hour cache expires pays to write all of it again.</p>
+        <p class="lede">So lean pairs its tools with a context policy: compact sooner, and never resume a huge stale session by accident.</p>
+        <div class="kpi-line"><div class="big">−50 to −60%</div><span>simulated spend, replaying 8,158 real Claude Code turns with lean's guard plus <code>autoCompactWindow: 200000</code></span></div>
+      </div>
+      <div class="term" aria-label="Example context guard message">
+        <div class="bar-top"><i></i><i></i><i></i></div>
+<pre><span class="m">&gt;</span> ok, next let's wire up the settings page
+<span class="y">lean:</span> this session holds ~340k tokens of context
+and has been idle 2.0h, so the prompt cache has
+expired. Sending now re-writes all ~340k tokens at
+cache-write price, and every later turn carries
+them again. Run <span class="g">/compact</span> first, or send the same
+prompt again to go ahead anyway.</pre>
+      </div>
+    </div>
+    <p class="footnote">The simulation re-prices each recorded turn and charges every compaction a full uncached read, its summary and 30–60k tokens of re-reads afterwards. It can't price detail lost to compaction, which is the trade-off you accept.</p>
+  </div>
+</section>
+
+<section id="cut" style="background:var(--surface-2); border-top:1px solid var(--line); border-bottom:1px solid var(--line)">
+  <div class="wrap">
+    <div class="eyebrow">What we cut</div>
+    <h2>Most good ideas didn't survive the benchmark.</h2>
+    <p class="lede">Each candidate got mechanism tests that prove it works, then a benchmark and a replay of real usage to prove it matters. These all worked as designed. They just didn't pay.</p>
+    <div class="scoreboard">
+      <div>16<span>ideas tested</span></div>
+      <div>12<span>cut</span></div>
+      <div style="color:var(--accent-ink)">4<span>shipped</span></div>
+    </div>
+    <div class="grave">
+      <div class="tomb"><h4>Read cache</h4><p>0 identical re-reads in 615 real reads. Claude Code already doesn't re-read.</p></div>
+      <div class="tomb"><h4>Outline tool</h4><p>Never called in 9 sessions. Tools Claude has to choose go unused.</p></div>
+      <div class="tomb"><h4>Big-file outline + ReadSymbol</h4><p>Never fired. The repo map's line numbers already make Claude read ranges.</p></div>
+      <div class="tomb"><h4>Data-file summaries</h4><p>Claude queries big JSON and logs with jq and grep. Nothing to summarize.</p></div>
+      <div class="tomb"><h4>Grep junk filter</h4><p>−43% grep output on a polluted repo, but 0.04% of real usage, and it could hide code in build/.</p></div>
+      <div class="tomb"><h4>Bash output compaction hook</h4><p>0% change. RunCompact already covers it.</p></div>
+      <div class="tomb"><h4>Slim mode (no core tools)</h4><p>+10% cost and 4× the exploring turns. The core tools stay.</p></div>
+      <div class="tomb"><h4>Cache-stable session prefix</h4><p>No measurable effect on prompt caching.</p></div>
+      <div class="tomb"><h4>Faster search index</h4><p>Tools are 0.4% of wall time. The model is the bottleneck.</p></div>
+      <div class="tomb"><h4>Write → Edit guard</h4><p>Full-file rewrites are rare. Under 1% of output.</p></div>
+      <div class="tomb"><h4>Dedupe repeat calls</h4><p>816 repeats added up to ~665 tokens. Not worth a hook.</p></div>
+      <div class="tomb"><h4>Parallelize single reads</h4><p>8 occurrences in all of history.</p></div>
+    </div>
+    <p class="footnote">Version one also ran two hooks on every tool call, about 55 ms each. They're gone: the shipping build adds no per-call latency.</p>
+  </div>
+</section>
+
+<section id="method">
+  <div class="wrap">
+    <div class="eyebrow">How we measured</div>
+    <h2>A clean fight against vanilla.</h2>
+    <div class="method">
+      <div><h4>Isolated</h4><p>Every session ran with user plugins, hooks and connectors switched off, so lean faced plain Claude Code and nothing else.</p></div>
+      <div><h4>Real and synthetic tasks</h4><p>3 tasks on a real Next.js app pinned to one commit, 5 on a generated repo built to trigger each feature. Every answer and edit checked automatically.</p></div>
+      <div><h4>Reproducible</h4><p>Throwaway git clone per arm, reset after every run, arms in parallel. The harness, tasks, fixture and raw results are all in the repo.</p></div>
+    </div>
+    <p class="footnote">Claude Opus 5.5 on Claude Code 2.1.301. 80 benchmark sessions in the two composite runs, plus feature rounds; about $45 of API time in total.</p>
+  </div>
+</section>
+
+<section id="install" style="padding-top:24px">
+  <div class="wrap">
+    <div class="eyebrow">Install</div>
+    <h2>Thirty seconds to fewer turns.</h2>
+    <div class="install">
+      <div class="step">
+        <div class="n">01</div>
+        <h4>Add the marketplace</h4>
+        <div class="code">/plugin marketplace add jkcailteux/lean-plugin<button class="copy">Copy</button></div>
+      </div>
+      <div class="step">
+        <div class="n">02</div>
+        <h4>Install and restart</h4>
+        <div class="code">/plugin install lean@lean-marketplace<button class="copy">Copy</button></div>
+      </div>
+      <div class="step">
+        <div class="n">03</div>
+        <h4>Compact sooner <span style="color:var(--ink-3);font-weight:400">(recommended)</span></h4>
+        <div class="code">// ~/.claude/settings.json
+{ "autoCompactWindow": 200000 }<button class="copy">Copy</button></div>
+      </div>
+    </div>
+    <p class="footnote">Run the first two inside Claude Code. The source repository is private while lean is in preview.</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>lean · a Claude Code plugin · built and benchmarked with Claude Code</span>
+    <span>Numbers from <span class="mono">REPORT.md</span> and <span class="mono">bench/results</span></span>
+  </div>
+</footer>
+
+<div class="tip" id="tip" role="tooltip"></div>
+
+<script>
+// Confirmation run of the shipping build: mean of 2 runs per task per arm (bench/results/2026-11-01T18-10-07_base-vs-final).
+const TASKS = [
+  { name: "Multi-file edit", sub: "timeout on every fetch()", cost: [0.338, 0.234], turns: [29.5, 6.0], wall: [46, 23] },
+  { name: "Symbol in a 2k-line file", sub: "explain computeTotals", cost: [0.335, 0.176], turns: [8.5, 5.0], wall: [35, 26] },
+  { name: "Explore a codebase", sub: "structure and data flow", cost: [0.162, 0.156], turns: [4.0, 2.0], wall: [19, 12] },
+  { name: "Multi-step change", sub: "edit, test, repeat", cost: [0.184, 0.164], turns: [11.0, 11.0], wall: [29, 20] },
+  { name: "Trace callers", sub: "every export and its callers", cost: [0.193, 0.182], turns: [4.0, 4.5], wall: [19, 25] },
+  { name: "Fix a failing test", sub: "run suite, find bug", cost: [0.119, 0.118], turns: [6.0, 5.0], wall: [16, 12] },
+  { name: "Query big data files", sub: "2 MB JSON, 30k-line log", cost: [0.124, 0.131], turns: [9.0, 7.0], wall: [13, 15] },
+  { name: "One grep", sub: "find a function's callers", cost: [0.072, 0.084], turns: [2.0, 2.0], wall: [12, 9] },
+];
+const METRIC = {
+  cost: { label: "Cost", fmt: (v) => "$" + v.toFixed(3) },
+  turns: { label: "Turns", fmt: (v) => v.toFixed(1) },
+  wall: { label: "Wall time", fmt: (v) => v + "s" },
+};
+const rows = document.getElementById("rows");
+const tip = document.getElementById("tip");
+const pct = (a, b) => Math.round(((b - a) / a) * 100);
+const sign = (p) => (p > 0 ? "+" : p < 0 ? "−" : "±") + Math.abs(p) + "%";
+
+function render(m) {
+  const max = Math.max(...TASKS.flatMap((t) => t[m]));
+  const fmt = METRIC[m].fmt;
+  rows.innerHTML = TASKS.map((t, i) => {
+    const [v, l] = t[m];
+    const p = pct(v, l);
+    return `<div class="row" data-i="${i}">
+      <div class="name">${t.name}<span>${t.sub}</span></div>
+      <div class="bars">
+        <div class="bar-line"><div class="bar v" style="width:calc((100% - 120px) * ${v / max})"></div><span class="val">${fmt(v)}</span></div>
+        <div class="bar-line"><div class="bar l" style="width:calc((100% - 120px) * ${l / max})"></div><span class="val">${fmt(l)}</span><span class="delta${p > 0 ? " worse" : ""}">${sign(p)}</span></div>
+      </div>
+    </div>`;
+  }).join("");
+  document.getElementById("tbl").innerHTML =
+    `<thead><tr><th>Task</th><th>Vanilla</th><th>lean</th><th>Change</th></tr></thead><tbody>` +
+    TASKS.map((t) => `<tr><td>${t.name}</td><td>${fmt(t[m][0])}</td><td>${fmt(t[m][1])}</td><td>${sign(pct(t[m][0], t[m][1]))}</td></tr>`).join("") +
+    `</tbody>`;
+  rows.dataset.m = m;
+}
+render("cost");
+
+document.querySelectorAll(".seg button").forEach((b) =>
+  b.addEventListener("click", () => {
+    document.querySelectorAll(".seg button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+    render(b.dataset.m);
+  })
+);
+
+rows.addEventListener("mousemove", (e) => {
+  const row = e.target.closest(".row");
+  if (!row) return (tip.style.opacity = 0);
+  const t = TASKS[row.dataset.i];
+  const m = rows.dataset.m;
+  const [v, l] = t[m];
+  tip.innerHTML = `<b>${t.name}</b><br>${METRIC[m].label}: vanilla ${METRIC[m].fmt(v)} → lean ${METRIC[m].fmt(l)} (${sign(pct(v, l))})`;
+  const x = Math.min(e.clientX + 14, window.innerWidth - tip.offsetWidth - 8);
+  tip.style.left = x + "px";
+  tip.style.top = e.clientY + 14 + "px";
+  tip.style.opacity = 1;
+});
+rows.addEventListener("mouseleave", () => (tip.style.opacity = 0));
+
+document.querySelectorAll(".copy").forEach((btn) =>
+  btn.addEventListener("click", async () => {
+    const text = btn.parentElement.firstChild.textContent.trim();
+    try {
+      await navigator.clipboard.writeText(text);
+      btn.textContent = "Copied";
+    } catch {
+      btn.textContent = "Select";
+    }
+    setTimeout(() => (btn.textContent = "Copy"), 1500);
+  })
+);
+
+const root = document.documentElement;
+try {
+  const saved = localStorage.getItem("lean-theme");
+  if (saved) root.dataset.theme = saved;
+} catch {}
+document.getElementById("theme").addEventListener("click", () => {
+  const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  root.dataset.theme = dark ? "light" : "dark";
+  try { localStorage.setItem("lean-theme", root.dataset.theme); } catch {}
+});
+</script>
+</body>
+</html>
