@@ -8,5 +8,6 @@ The lean MCP server adds tools that save turns and tokens:
 - MultiRead: read several files, or line ranges of them, in one call instead of one read per file.
 - BatchEdit: when a change needs more than one edit, make all of them in a single call. No prior read needed; copy the old text from grep output.
 - RunCompact: run tests, builds and linters through it when the output is long; it returns the exit status, error lines with context and the tail.
+- UsageStats: when asked what lean saved or did, call it (pass `sinceHours` for another window, `allProjects` for every project) and show its tables as they are.
 
 If a `lean-repo-map` rule is present, use its file and symbol list to go straight to the right file and line range instead of exploring with ls, find or broad greps.

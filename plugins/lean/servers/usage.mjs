@@ -3,7 +3,7 @@
 // (~/.claude/projects/<project path with non-alphanumerics as "-">/*.jsonl) plus lean's savings log,
 // so nothing runs per tool call.
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, basename } from "node:path";
 import { homedir } from "node:os";
 
 // API list prices in $ per million tokens: [model id prefix, input, output, cache read].
@@ -208,6 +208,7 @@ export function usageStats(root, savingsLog, { sinceHours = 24, maxTools = Infin
   let warned = 0;
   let compacted = 0;
   for (const row of readLog(savingsLog, since)) {
+    if (row.host === "cursor" || (row.root && row.root !== root)) continue;
     if (row.tool === "contextguard") {
       const s = sessions.find((x) => x.file === row.transcript);
       if (!s) continue;
@@ -246,6 +247,47 @@ export function usageStats(root, savingsLog, { sinceHours = 24, maxTools = Infin
     "",
     "Not counted: the repo map's shorter exploration (measured overall in the benchmark: 18-28% cheaper, 25-28% faster). " +
       "$ are API list prices; on a subscription read them as usage-limit headroom. Measured A/B: node bench/bench.mjs."
+  );
+  return out.join("\n");
+}
+
+// Cursor gives plugins no transcripts or token counts, so this reports from lean's own savings log:
+// per tool, the output kept out of context and the round trips saved.
+export function savingsStats(root, savingsLog, { sinceHours = 24, allProjects = false } = {}) {
+  const since = Date.now() - sinceHours * 3600_000;
+  const rows = readLog(savingsLog, since).filter((r) => r.root && r.tool !== "contextguard" && (allProjects || r.root === root));
+  const sum = (key) => {
+    const m = new Map();
+    for (const r of rows) {
+      const a = m.get(key(r)) ?? { uses: 0, tokens: 0, trips: 0 };
+      a.uses++;
+      a.tokens += Math.max(0, (r.baseline - r.sent) / 4);
+      a.trips += r.callsSaved ?? 0;
+      m.set(key(r), a);
+    }
+    return [...m].sort((a, b) => b[1].tokens - a[1].tokens || b[1].trips - a[1].trips);
+  };
+  const table = (label, list) => [
+    `| ${label} | uses | ≈ tokens kept out | round trips saved |`,
+    "|---|---:|---:|---:|",
+    ...list.map(([k, a]) => `| ${k} | ${a.uses} | ${a.tokens ? fmt(a.tokens) : "–"} | ${a.trips || "–"} |`),
+  ];
+  const where = allProjects ? "all projects" : basename(root) || root;
+  const out = [`Last ${sinceHours}h · lean tool calls in ${where}`];
+  if (!rows.length) {
+    out.push(`No lean tool calls logged for ${allProjects ? "any project" : root} in the last ${sinceHours}h.`);
+  } else {
+    const byTool = sum((r) => r.tool);
+    const total = byTool.reduce((n, [, a]) => ({ uses: n.uses + a.uses, tokens: n.tokens + a.tokens, trips: n.trips + a.trips }), { uses: 0, tokens: 0, trips: 0 });
+    out.push("", "What lean saved (estimates; ≈ tokens = chars / 4)", ...table("tool", byTool));
+    if (allProjects) out.push("", ...table("project", sum((r) => basename(r.root) || r.root)));
+    out.push(`Total: ${total.uses} calls, ≈ ${fmt(total.tokens)} tokens kept out of context, ${total.trips} round trips saved.`);
+  }
+  out.push(
+    "",
+    "Cursor doesn't share token counts or cost with plugins, so spend isn't shown here: see Usage in the Cursor dashboard. " +
+      "Each kept-out token is also not re-read on later turns, and each saved round trip skips a full model call. " +
+      "Not counted: the repo map's shorter exploration (measured in Claude Code: 18-28% cheaper, 25-28% faster)."
   );
   return out.join("\n");
 }

@@ -58,6 +58,7 @@ p { margin: 0 0 14px; }
 /* hero */
 .hero { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 24px; padding: 64px 0 56px; }
 .kicker { grid-column: 1 / -1; margin: 0 0 16px; font-size: 14px; font-weight: 500; color: var(--red); }
+h1 .get { color: var(--red); }
 h1 { grid-column: 1 / 12; margin: 0 0 48px; font-size: clamp(48px, 8.6vw, 112px); line-height: .92; font-weight: 700; letter-spacing: -0.045em; }
 .lede { grid-column: 1 / 7; margin: 0; font-size: 19px; line-height: 1.4; }
 .lede code { font-size: .84em; }
@@ -190,6 +191,10 @@ td.n, th.n { text-align: right; padding-right: 0; font-variant-numeric: tabular-
 .steps > div { min-width: 0; }
 .steps .n { font-size: 28px; font-weight: 700; letter-spacing: -0.03em; color: var(--red); }
 .steps h3 { font-size: 15px; font-weight: 500; margin: 4px 0 12px; min-height: 2.6em; }
+.host { font-size: 22px; letter-spacing: -0.02em; margin: 0 0 20px; }
+.host + .lead { margin-top: -8px; }
+.host.next { margin-top: 64px; padding-top: 12px; border-top: 4px solid var(--ink); }
+.steps + .note { margin-top: 24px; }
 .facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 24px; margin-top: 56px; }
 .facts div { border-top: 1px solid var(--ink); padding-top: 12px; }
 .facts h3 { font-size: 22px; letter-spacing: -0.02em; }
@@ -247,8 +252,8 @@ footer .mark { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
 
 <main id="top" class="wrap">
   <div class="hero">
-    <p class="kicker">A plugin for Claude Code</p>
-    <h1>Same tasks. Half the turns.</h1>
+    <p class="kicker">A plugin for Claude Code and Cursor</p>
+    <h1>Same tasks. Half the turns. <span class="get">Get Lean</span></h1>
     <p class="lede">lean gives Claude a map of your repo so it stops exploring with <code>ls</code> and <code>find</code>, lets it make many edits in one call, trims test output, and warns you before a stale session re-bills its whole context.</p>
     <div class="cmds">
       <p class="label">Run both inside Claude Code, then restart it.</p>
@@ -454,6 +459,7 @@ lean:RunCompact   708 tokens       <span class="g">$0.01</span></pre>
   <section class="sec" id="install">
     <h2><span class="num">07</span>Install</h2>
     <div class="body">
+      <h3 class="host">Claude Code</h3>
       <p class="lead">Two commands, one restart.</p>
       <div class="steps">
         <div><span class="n">1</span><h3>Add the marketplace</h3>
@@ -463,6 +469,17 @@ lean:RunCompact   708 tokens       <span class="g">$0.01</span></pre>
         <div><span class="n">3</span><h3>Optional: compact sooner in <code>~/.claude/settings.json</code></h3>
           <div class="code"><pre>{ "autoCompactWindow": 200000 }</pre><button class="copy">Copy</button></div></div>
       </div>
+      <h3 class="host next">Cursor</h3>
+      <p class="lead">Copy the plugin into Cursor's local plugins folder. No restart.</p>
+      <div class="steps">
+        <div><span class="n">1</span><h3>Clone the repo</h3>
+          <div class="code"><pre>git clone https://github.com/jkcailteux/lean-plugin</pre><button class="copy">Copy</button></div></div>
+        <div><span class="n">2</span><h3>Copy the plugin into Cursor</h3>
+          <div class="code"><pre>rsync -a --exclude test lean-plugin/plugins/lean/ ~/.cursor/plugins/local/lean/</pre><button class="copy">Copy</button></div></div>
+        <div><span class="n">3</span><h3>Turn on hooks in Cursor Settings</h3>
+          <p class="note">Turn on <b>Include Third-Party Plugins, Skills, and Other Configs</b>. Cursor runs plugin hooks only with it on, and the repo map is written by a hook.</p></div>
+      </div>
+      <p class="note">Already have lean in Claude Code? With that setting on, Cursor imports it and you get MultiRead, BatchEdit and RunCompact. The repo-map rule, the rule that steers the agent to the tools, and a scout agent on Cursor's fast model come only from the Cursor copy. In Cursor, ask the agent what lean saved: UsageStats then reports the tokens kept out of context and the round trips saved, per tool and per project, from lean's own local log. Cursor doesn't share token counts or cost, so for spend use Cursor's usage dashboard. The context guard reads Claude Code transcripts, so it doesn't work in Cursor. Every number on this page was measured in Claude Code; the Cursor port isn't benchmarked yet.</p>
       <div class="facts">
         <div><h3>MIT licensed</h3><p>Use it, fork it, ship it.</p></div>
         <div><h3>No telemetry</h3><p>No network code. <code>/lean:stats</code> only reads transcripts already on your disk.</p></div>

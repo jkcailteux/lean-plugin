@@ -8,7 +8,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, utimesSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 // Child processes must not inherit the test runner's context, or the fixture's own
@@ -217,9 +217,60 @@ test("feature flags gate tools; slim hides the core tools", () => {
   assert.equal(mcp("", [["tools/call", { name: "BatchEdit", arguments: { edits: [] } }]])[0].error.code, -32602);
 });
 
-test("cursor host: UsageStats is hidden (no Claude transcripts to read)", () => {
-  const [res] = mcp("batchedit", [["tools/list"]], { LEAN_HOST: "cursor" });
-  assert.equal(res.result.tools.map((t) => t.name).sort().join(","), "BatchEdit,MultiRead,RunCompact");
+test("cursor host: UsageStats reports from the savings log, also in the copy Cursor imports from Claude Code", () => {
+  const schema = (env) => mcp("batchedit", [["tools/list"]], env)[0].result.tools.find((t) => t.name === "UsageStats").inputSchema.properties;
+  assert.ok(schema({ LEAN_HOST: "cursor" }).allProjects);
+  const cursorApp = { CLAUDECODE: "", CLAUDE_PROJECT_DIR: "", VSCODE_NLS_CONFIG: '{"defaultMessagesFile":"/Applications/Cursor.app/x"}' };
+  assert.ok(schema(cursorApp).allProjects, "the Cursor app is recognized without LEAN_HOST");
+  assert.equal(schema({}).allProjects, undefined, "Claude Code keeps the transcript report");
+});
+
+test("cursor host: the workspace comes from the client's roots when no project dir is set", () => {
+  const ws = mkdtempSync(join(tmpdir(), "lean-ws-"));
+  writeFileSync(join(ws, "hello.txt"), "hi from the workspace\n");
+  const log = join(stateDir, "roots.jsonl");
+  const lines = [
+    { jsonrpc: "2.0", id: 1, method: "initialize", params: { capabilities: { roots: { listChanged: true } } } },
+    { jsonrpc: "2.0", method: "notifications/initialized" },
+    { jsonrpc: "2.0", id: "lean-1", result: { roots: [{ uri: pathToFileURL(ws).href, name: "ws" }] } },
+    { jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "MultiRead", arguments: { files: [{ path: "hello.txt" }, { path: "hello.txt" }] } } },
+  ];
+  const r = spawnSync("node", [script("servers/tools-server.mjs")], {
+    input: lines.map((l) => JSON.stringify(l)).join("\n") + "\n",
+    cwd: fx,
+    env: { ...ENV, CLAUDE_PROJECT_DIR: "", LEAN_HOST: "cursor", LEAN_SAVINGS_LOG: log },
+    encoding: "utf8",
+  });
+  const out = r.stdout.trim().split("\n").map((l) => JSON.parse(l));
+  assert.ok(out.some((m) => m.method === "roots/list"), "the server asks for roots");
+  assert.match(out.find((m) => m.id === 2).result.content[0].text, /hi from the workspace/);
+  const [row] = readFileSync(log, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+  assert.deepEqual([row.root, row.host, row.callsSaved], [ws, "cursor", 1]);
+});
+
+test("cursor host: UsageStats sums tokens kept out and round trips per tool, for this project or all", () => {
+  const log = join(stateDir, "cursor-stats.jsonl");
+  const now = Date.now();
+  writeFileSync(
+    log,
+    [
+      { t: now, tool: "RunCompact", sent: 1000, baseline: 41_000, callsSaved: 0, root: fx, host: "cursor" },
+      { t: now, tool: "RunCompact", sent: 500, baseline: 4500, callsSaved: 0, root: fx, host: "cursor" },
+      { t: now, tool: "BatchEdit", sent: 40, baseline: 40, callsSaved: 3, root: fx, host: "cursor" },
+      { t: now, tool: "MultiRead", sent: 800, baseline: 800, callsSaved: 2, root: "/work/other", host: "cursor" },
+      { t: now - 48 * 3600_000, tool: "RunCompact", sent: 0, baseline: 400_000, callsSaved: 0, root: fx, host: "cursor" }, // outside the window
+    ].map((l) => JSON.stringify(l)).join("\n") + "\n"
+  );
+  const call = (args) => text(mcp("", [["tools/call", { name: "UsageStats", arguments: args }]], { LEAN_HOST: "cursor", LEAN_SAVINGS_LOG: log })[0]);
+  const t = call({});
+  assert.match(t, /\| RunCompact \| 2 \| 11,000 \| – \|/);
+  assert.match(t, /\| BatchEdit \| 1 \| – \| 3 \|/);
+  assert.doesNotMatch(t, /MultiRead/, "other projects are left out");
+  assert.match(t, /Total: 3 calls, ≈ 11,000 tokens kept out of context, 3 round trips saved\./);
+  assert.match(t, /Cursor dashboard/);
+  const all = call({ allProjects: true });
+  assert.match(all, /\| MultiRead \| 1 \| – \| 2 \|/);
+  assert.match(all, /\| other \| 1 \| – \| 2 \|/);
 });
 
 // ---------- contextguard ----------
@@ -376,6 +427,7 @@ test("UsageStats: prices turns and credits lean tool calls and a guard-prompted 
     [
       { t: t0 + 1000, tool: "MultiRead", sent: 400, baseline: 4400, callsSaved: 2, id: "L" },
       { t: t0 + 1000, tool: "RunCompact", sent: 10, baseline: 100_000, callsSaved: 0 }, // another project's call
+      { t: t0 + 1000, tool: "MultiRead", sent: 400, baseline: 4400, callsSaved: 2, root: fx, host: "cursor" }, // a Cursor call here
       { t: t0 + H2, tool: "contextguard", ctx: 300_000, transcript: guarded },
     ].map((l) => JSON.stringify(l)).join("\n") + "\n"
   );

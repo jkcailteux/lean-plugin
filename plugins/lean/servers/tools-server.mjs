@@ -4,17 +4,23 @@
 import { createInterface } from "node:readline";
 import { readFileSync, writeFileSync, appendFileSync, mkdirSync } from "node:fs";
 import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import { SAVINGS_LOG } from "../scripts/paths.mjs";
 import { has } from "../scripts/features.mjs";
 import { outline, declarations } from "./outline.mjs";
 import { compact } from "../scripts/compact.mjs";
-import { usageStats } from "./usage.mjs";
+import { usageStats, savingsStats } from "./usage.mjs";
 
 const VERSION = "0.1.0";
-const ROOT = process.env.CLAUDE_PROJECT_DIR || process.env.CURSOR_PROJECT_DIR || process.cwd();
-// Cursor has no Claude transcripts for UsageStats to read.
-const HOST = process.env.LEAN_HOST || "claude";
+const ENV_ROOT = process.env.CLAUDE_PROJECT_DIR || process.env.CURSOR_PROJECT_DIR;
+// The Cursor app starts MCP servers in "/" with no project dir, so ROOT then comes from the client's roots.
+let ROOT = ENV_ROOT || process.cwd();
+// Cursor has no Claude transcripts, so UsageStats reports from the savings log alone. The Cursor manifest
+// sets LEAN_HOST; the copy Cursor imports from Claude Code doesn't, so recognize the Cursor app too.
+const HOST =
+  process.env.LEAN_HOST ||
+  (process.env.CLAUDECODE || process.env.CLAUDE_PROJECT_DIR ? "claude" : /cursor/i.test(process.env.VSCODE_NLS_CONFIG ?? "") ? "cursor" : "claude");
 
 // ---------- tools ----------
 
@@ -66,7 +72,7 @@ function runCompact({ command, timeoutSec = 300, context = 2, tail = 15 }) {
 function recordSavings(tool, sent, baseline, callsSaved, id) {
   try {
     mkdirSync(dirname(SAVINGS_LOG), { recursive: true });
-    appendFileSync(SAVINGS_LOG, JSON.stringify({ t: Date.now(), tool, sent, baseline, callsSaved, id }) + "\n");
+    appendFileSync(SAVINGS_LOG, JSON.stringify({ t: Date.now(), tool, sent, baseline, callsSaved, id, root: ROOT, host: HOST }) + "\n");
   } catch {}
 }
 
@@ -251,30 +257,66 @@ const TOOLS = [
     },
     run: runCompact,
   },
-  {
-    name: "UsageStats",
-    core: true,
-    hosts: ["claude"],
-    description:
-      "Summarize this project's recent sessions: cost at API prices, which tools produced the most output (a proxy for context/tokens), and estimated tokens, round trips, dollars and time lean saved.",
-    annotations: READ_ONLY,
-    inputSchema: {
-      type: "object",
-      properties: { sinceHours: { type: "number", description: "Window in hours (default 24)." } },
-    },
-    run: (args) => usageStats(ROOT, SAVINGS_LOG, args),
-  },
+  HOST === "cursor"
+    ? {
+        name: "UsageStats",
+        core: true,
+        description:
+          "Summarize what lean saved in this project: tokens kept out of context and round trips saved, per tool. Use when asked about lean's savings, token usage or what lean did.",
+        annotations: READ_ONLY,
+        inputSchema: {
+          type: "object",
+          properties: {
+            sinceHours: { type: "number", description: "Window in hours (default 24)." },
+            allProjects: { type: "boolean", description: "Break the totals down by project instead of only this one." },
+          },
+        },
+        run: (args) => savingsStats(ROOT, SAVINGS_LOG, args),
+      }
+    : {
+        name: "UsageStats",
+        core: true,
+        description:
+          "Summarize this project's recent sessions: cost at API prices, which tools produced the most output (a proxy for context/tokens), and estimated tokens, round trips, dollars and time lean saved.",
+        annotations: READ_ONLY,
+        inputSchema: {
+          type: "object",
+          properties: { sinceHours: { type: "number", description: "Window in hours (default 24)." } },
+        },
+        run: (args) => usageStats(ROOT, SAVINGS_LOG, args),
+      },
 ];
 
 // ---------- JSON-RPC plumbing ----------
 
 const rpcError = (code, message) => Object.assign(new Error(message), { code });
-const enabled = (t) =>
-  (!t.hosts || t.hosts.includes(HOST)) && (t.feature ? has(t.feature) : !(t.core && has("slim")));
+const enabled = (t) => (t.feature ? has(t.feature) : !(t.core && has("slim")));
+
+// Ask the client for its workspace folders when the environment names none.
+let clientCaps = {};
+let rootsReady = Promise.resolve();
+const waiting = new Map();
+let nextId = 0;
+function ask(method) {
+  const id = `lean-${++nextId}`;
+  send({ jsonrpc: "2.0", id, method });
+  return new Promise((done) => {
+    waiting.set(id, done);
+    setTimeout(() => done(null), 2000).unref();
+  });
+}
+function syncRoots() {
+  if (ENV_ROOT || !clientCaps.roots) return;
+  rootsReady = ask("roots/list").then((res) => {
+    const uri = res?.result?.roots?.[0]?.uri;
+    if (uri?.startsWith("file:")) ROOT = fileURLToPath(uri);
+  });
+}
 
 async function handle(method, params) {
   switch (method) {
     case "initialize":
+      clientCaps = params.capabilities ?? {};
       return {
         protocolVersion: params.protocolVersion ?? "2025-06-18",
         capabilities: { tools: {} },
@@ -283,8 +325,9 @@ async function handle(method, params) {
     case "ping":
       return {};
     case "tools/list":
-      return { tools: TOOLS.filter(enabled).map(({ run, feature, core, hosts, ...def }) => def) };
+      return { tools: TOOLS.filter(enabled).map(({ run, feature, core, ...def }) => def) };
     case "tools/call": {
+      await rootsReady;
       const tool = TOOLS.find((t) => t.name === params.name && enabled(t));
       if (!tool) throw rpcError(-32602, `Unknown tool: ${params.name}`);
       try {
@@ -311,7 +354,16 @@ createInterface({ input: process.stdin }).on("line", async (line) => {
   } catch {
     return send({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } });
   }
-  if (msg.id === undefined) return; // notification (e.g. notifications/initialized)
+  if (msg.method === undefined) {
+    // a response to one of our requests
+    waiting.get(msg.id)?.(msg);
+    return waiting.delete(msg.id);
+  }
+  if (msg.id === undefined) {
+    // notification
+    if (msg.method === "notifications/initialized" || msg.method === "notifications/roots/list_changed") syncRoots();
+    return;
+  }
   try {
     send({ jsonrpc: "2.0", id: msg.id, result: await handle(msg.method, msg.params ?? {}) });
   } catch (err) {

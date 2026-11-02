@@ -85,7 +85,7 @@ rsync -a --exclude test /path/to/lean-plugin/plugins/lean/ ~/.cursor/plugins/loc
 
 The repo map needs Cursor's plugin hooks, and the Cursor app runs those only while **Include Third-Party Plugins, Skills, and Other Configs** is on (Cursor Settings). With it off the tools still load but the repo map is never written.
 
-With that setting on, Cursor also imports lean from Claude Code if it is installed there (it shows as "Imported", and `loadClaudePlugin lean@lean-marketplace` appears in its logs). Both copies serve the same tools under the same `plugin-lean-tools` id; the imported one adds UsageStats, which has nothing to read in Cursor.
+With that setting on, Cursor also imports lean from Claude Code if it is installed there (it shows as "Imported", and `loadClaudePlugin lean@lean-marketplace` appears in its logs). Both copies serve the same tools under the same `plugin-lean-tools` id, and both give UsageStats its Cursor report (the server recognizes the Cursor app from its environment).
 
 **Cursor CLI:** `cursor-agent --plugin-dir /path/to/lean-plugin/plugins/lean` loads it for one run. Cursor asks before every MCP tool call, and in print mode (`-p`) it rejects them unless they are allowed. Allow the tools in a project's `.cursor/cli.json` (RunCompact runs shell commands, so add it only if you would allow those):
 
@@ -103,7 +103,10 @@ What you get in Cursor:
 | Repo map | Written to `.cursor/rules/lean-repo-map.mdc` as an always-applied rule on workspace open and session start, and added to `.git/info/exclude` so it never shows in `git status` |
 | Tool nudges | `cursor/rules/lean.mdc`, always applied |
 | scout agent | `cursor/agents/scout.md`, on Cursor's fast model, read-only |
+| UsageStats | Ask the agent what lean saved: tokens kept out of context and round trips saved, per tool, for this project (`allProjects` for all), from lean's local savings log. No spend or dollars: Cursor doesn't share token counts, so see Usage in the Cursor dashboard. The repo map's effect isn't counted |
 | Context guard, `/lean:stats` | Not available: they read Claude Code transcripts |
+
+The Cursor app starts MCP servers in `/`, so the server asks Cursor for the workspace folder (MCP roots) and resolves relative paths and the per-project stats against it.
 
 The Cursor port is not benchmarked yet: every measured saving in this README comes from Claude Code.
 
@@ -113,7 +116,7 @@ The Cursor port is not benchmarked yet: every measured saving in this README com
 - `LEAN_FEATURES=repomap,batchedit,junkfilter claude`: override for one session (comma or `+` separated; empty string turns everything optional off).
 - `.claude/lean-notes.md` in a project: injected into every session there.
 - Context guard thresholds: `LEAN_GUARD_IDLE_MIN` (default 58), `LEAN_GUARD_MIN_CTX` (150000), `LEAN_GUARD_LARGE_CTX` (250000).
-- Files live in `~/.claude/lean/` (savings log, hook state, repo-map cache). Delete the folder any time. Usage stats come from Claude Code's own transcripts, so nothing is logged per tool call.
+- Files live in `~/.claude/lean/` (savings log, hook state, repo-map cache). Delete the folder any time. In Claude Code usage stats come from its own transcripts; the savings log holds one line per lean tool call (tool, sizes, round trips saved, project folder), which is all the Cursor report reads.
 - `/lean:stats` (or "show lean stats for the last 72h") prices each turn from the transcript's token counts at API list prices, then credits lean with: output each tool kept out of context (one cache write plus a re-read on every later turn until compaction), each round trip saved (at that session's average turn cost and the median turn time), and each context-guard warning that was followed by `/compact`. Not counted: the repo map's shorter exploration, which only the benchmark measures. On a subscription, read the dollars as usage-limit headroom.
 
 Default hooks run once per session (SessionStart) and once per prompt (UserPromptSubmit), never per tool call. They never grant permissions or hold a prompt. (The opt-in experimental hooks can deny a tool call; each denial says how to go ahead anyway.)
@@ -124,7 +127,7 @@ Default hooks run once per session (SessionStart) and once per prompt (UserPromp
 node --test plugins/lean/test/features.test.mjs
 ```
 
-28 mechanism tests: every hook and tool runs as a real subprocess with the JSON Claude Code (or Cursor) sends, against a generated fixture repo.
+30 mechanism tests: every hook and tool runs as a real subprocess with the JSON Claude Code (or Cursor) sends, against a generated fixture repo.
 
 ## Benchmark
 
