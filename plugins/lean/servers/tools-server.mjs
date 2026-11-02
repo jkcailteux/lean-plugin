@@ -12,7 +12,9 @@ import { compact } from "../scripts/compact.mjs";
 import { usageStats } from "./usage.mjs";
 
 const VERSION = "0.1.0";
-const ROOT = process.env.CLAUDE_PROJECT_DIR || process.cwd();
+const ROOT = process.env.CLAUDE_PROJECT_DIR || process.env.CURSOR_PROJECT_DIR || process.cwd();
+// Cursor has no Claude transcripts for UsageStats to read.
+const HOST = process.env.LEAN_HOST || "claude";
 
 // ---------- tools ----------
 
@@ -149,6 +151,8 @@ function batchEdit({ edits }) {
 
 // `feature` gates a tool behind a feature flag (see features.json / LEAN_FEATURES).
 // `core` tools are hidden by the "slim" experiment.
+// `annotations` are standard MCP hints; readOnlyHint lets hosts such as Cursor skip the approval prompt.
+const READ_ONLY = { readOnlyHint: true };
 const TOOLS = [
   {
     name: "BatchEdit",
@@ -181,6 +185,7 @@ const TOOLS = [
     name: "ReadSymbol",
     feature: "bigread",
     description: "Read one function, class, method or type by name, with line numbers, instead of the whole file.",
+    annotations: READ_ONLY,
     inputSchema: {
       type: "object",
       properties: { path: { type: "string" }, name: { type: "string" } },
@@ -193,6 +198,7 @@ const TOOLS = [
     feature: "outline",
     description:
       "Show the structure of one or more files: imports, then every declaration (functions, classes, methods, types, top-level consts) with its line range and signature. About 10% of the size of reading the file. Use it before reading any file over ~100 lines, then Read only the line range you need.",
+    annotations: READ_ONLY,
     inputSchema: {
       type: "object",
       properties: { paths: { type: "array", items: { type: "string" }, minItems: 1, description: "Paths relative to the project root." } },
@@ -205,6 +211,7 @@ const TOOLS = [
     core: true,
     description:
       "Read several files (or line ranges) in ONE call, with line numbers. Prefer this over reading files one at a time. Paths are relative to the project root.",
+    annotations: READ_ONLY,
     inputSchema: {
       type: "object",
       properties: {
@@ -247,8 +254,10 @@ const TOOLS = [
   {
     name: "UsageStats",
     core: true,
+    hosts: ["claude"],
     description:
       "Summarize this project's recent sessions: cost at API prices, which tools produced the most output (a proxy for context/tokens), and estimated tokens, round trips, dollars and time lean saved.",
+    annotations: READ_ONLY,
     inputSchema: {
       type: "object",
       properties: { sinceHours: { type: "number", description: "Window in hours (default 24)." } },
@@ -260,7 +269,8 @@ const TOOLS = [
 // ---------- JSON-RPC plumbing ----------
 
 const rpcError = (code, message) => Object.assign(new Error(message), { code });
-const enabled = (t) => (t.feature ? has(t.feature) : !(t.core && has("slim")));
+const enabled = (t) =>
+  (!t.hosts || t.hosts.includes(HOST)) && (t.feature ? has(t.feature) : !(t.core && has("slim")));
 
 async function handle(method, params) {
   switch (method) {
@@ -273,7 +283,7 @@ async function handle(method, params) {
     case "ping":
       return {};
     case "tools/list":
-      return { tools: TOOLS.filter(enabled).map(({ run, feature, core, ...def }) => def) };
+      return { tools: TOOLS.filter(enabled).map(({ run, feature, core, hosts, ...def }) => def) };
     case "tools/call": {
       const tool = TOOLS.find((t) => t.name === params.name && enabled(t));
       if (!tool) throw rpcError(-32602, `Unknown tool: ${params.name}`);

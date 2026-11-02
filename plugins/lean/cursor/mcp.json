@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "tools": {
+      "command": "node",
+      "args": ["${CURSOR_PLUGIN_ROOT}/servers/tools-server.mjs"],
+      "env": { "LEAN_HOST": "cursor" }
+    }
+  }
+}

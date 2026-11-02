@@ -1,0 +1,15 @@
+{
+  "name": "lean",
+  "version": "0.1.0",
+  "description": "Token and turn savings for Cursor's agent: repo map rule, BatchEdit, batched reads and compact command output. No telemetry.",
+  "author": { "name": "Jeff Cailteux" },
+  "homepage": "https://jkcailteux.github.io/lean-plugin/",
+  "repository": "https://github.com/jkcailteux/lean-plugin",
+  "license": "MIT",
+  "keywords": ["tokens", "cost", "performance", "context", "benchmark"],
+  "rules": "./cursor/rules/",
+  "agents": "./cursor/agents/",
+  "hooks": "./cursor/hooks.json",
+  "mcpServers": "./cursor/mcp.json",
+  "skills": []
+}

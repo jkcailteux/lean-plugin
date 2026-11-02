@@ -73,6 +73,40 @@ Restart Claude Code. Check it loaded with `/plugin` (lean should be enabled) and
 
 **Uninstall:** `/plugin uninstall lean@lean-marketplace`.
 
+## Install in Cursor
+
+The same plugin folder carries a Cursor manifest (`.cursor-plugin/plugin.json`) next to the Claude one, sharing the MCP server and repo-map code.
+
+**Try it locally:** copy the plugin into Cursor's local plugins folder. Cursor rejects a symlink that points outside that folder, and picks up the copy without a restart.
+
+```bash
+rsync -a --exclude test /path/to/lean-plugin/plugins/lean/ ~/.cursor/plugins/local/lean/
+```
+
+The repo map needs Cursor's plugin hooks, and the Cursor app runs those only while **Include Third-Party Plugins, Skills, and Other Configs** is on (Cursor Settings). With it off the tools still load but the repo map is never written.
+
+With that setting on, Cursor also imports lean from Claude Code if it is installed there (it shows as "Imported", and `loadClaudePlugin lean@lean-marketplace` appears in its logs). Both copies serve the same tools under the same `plugin-lean-tools` id; the imported one adds UsageStats, which has nothing to read in Cursor.
+
+**Cursor CLI:** `cursor-agent --plugin-dir /path/to/lean-plugin/plugins/lean` loads it for one run. Cursor asks before every MCP tool call, and in print mode (`-p`) it rejects them unless they are allowed. Allow the tools in a project's `.cursor/cli.json` (RunCompact runs shell commands, so add it only if you would allow those):
+
+```json
+{ "permissions": { "allow": ["Mcp(plugin-lean-tools:BatchEdit)", "Mcp(plugin-lean-tools:MultiRead)"] } }
+```
+
+**Share it:** the repo root has a Cursor marketplace file (`.cursor-plugin/marketplace.json`) listing the same plugin.
+
+What you get in Cursor:
+
+| Feature | Cursor |
+|---|---|
+| MultiRead, BatchEdit, RunCompact | Same MCP server, same tools |
+| Repo map | Written to `.cursor/rules/lean-repo-map.mdc` as an always-applied rule on workspace open and session start, and added to `.git/info/exclude` so it never shows in `git status` |
+| Tool nudges | `cursor/rules/lean.mdc`, always applied |
+| scout agent | `cursor/agents/scout.md`, on Cursor's fast model, read-only |
+| Context guard, `/lean:stats` | Not available: they read Claude Code transcripts |
+
+The Cursor port is not benchmarked yet: every measured saving in this README comes from Claude Code.
+
 ## Configure
 
 - `plugins/lean/features.json`: the default feature list.
@@ -90,7 +124,7 @@ Default hooks run once per session (SessionStart) and once per prompt (UserPromp
 node --test plugins/lean/test/features.test.mjs
 ```
 
-24 mechanism tests: every hook and tool runs as a real subprocess with the JSON Claude Code sends, against a generated fixture repo.
+28 mechanism tests: every hook and tool runs as a real subprocess with the JSON Claude Code (or Cursor) sends, against a generated fixture repo.
 
 ## Benchmark
 
@@ -112,6 +146,8 @@ node bench/bench.mjs --arms base,lean --runs 3
 ```
 plugins/lean/
   .claude-plugin/plugin.json   manifest
+  .cursor-plugin/plugin.json   Cursor manifest (points at cursor/)
+  cursor/                      Cursor MCP config, hooks, rules, scout agent
   .mcp.json                    MCP server (alwaysLoad)
   features.json                default features
   hooks/hooks.json             SessionStart (repo map) + UserPromptSubmit (context guard)

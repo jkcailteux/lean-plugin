@@ -1,0 +1,11 @@
+{
+  "name": "lean-marketplace",
+  "owner": { "name": "Jeff Cailteux" },
+  "plugins": [
+    {
+      "name": "lean",
+      "source": "plugins/lean",
+      "description": "Token and turn savings for Cursor's agent: repo map rule, BatchEdit, batched reads and compact command output."
+    }
+  ]
+}

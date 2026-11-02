@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "hooks": {
+    "workspaceOpen": [{ "command": "node scripts/cursor-repo-map.mjs", "timeout": 10 }],
+    "sessionStart": [{ "command": "node scripts/cursor-repo-map.mjs", "timeout": 10 }]
+  }
+}

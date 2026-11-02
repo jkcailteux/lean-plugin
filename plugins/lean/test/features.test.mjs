@@ -40,12 +40,12 @@ function hook(file, input, features, extraEnv = {}) {
 const pre = (tool, toolInput, features) => hook("scripts/pre-tool.mjs", { hook_event_name: "PreToolUse", tool_name: tool, tool_input: toolInput }, features);
 const post = (tool, toolInput, features) => hook("scripts/post-tool.mjs", { hook_event_name: "PostToolUse", tool_name: tool, tool_input: toolInput, tool_response: "x" }, features);
 
-function mcp(features, calls) {
+function mcp(features, calls, extraEnv = {}) {
   const lines = calls.map((c, i) => JSON.stringify({ jsonrpc: "2.0", id: i + 1, method: c[0], params: c[1] ?? {} })).join("\n") + "\n";
   const r = spawnSync("node", [script("servers/tools-server.mjs")], {
     input: lines,
     cwd: fx,
-    env: { ...ENV, LEAN_FEATURES: features, CLAUDE_PROJECT_DIR: fx, LEAN_SAVINGS_LOG: join(stateDir, "s.jsonl") },
+    env: { ...ENV, LEAN_FEATURES: features, CLAUDE_PROJECT_DIR: fx, LEAN_SAVINGS_LOG: join(stateDir, "s.jsonl"), ...extraEnv },
     encoding: "utf8",
   });
   return r.stdout.trim().split("\n").map((l) => JSON.parse(l)).sort((a, b) => a.id - b.id);
@@ -215,6 +215,11 @@ test("feature flags gate tools; slim hides the core tools", () => {
   assert.equal(names("batchedit+bigread+outline"), "BatchEdit,MultiRead,Outline,ReadSymbol,RunCompact,UsageStats");
   assert.equal(names("slim"), "");
   assert.equal(mcp("", [["tools/call", { name: "BatchEdit", arguments: { edits: [] } }]])[0].error.code, -32602);
+});
+
+test("cursor host: UsageStats is hidden (no Claude transcripts to read)", () => {
+  const [res] = mcp("batchedit", [["tools/list"]], { LEAN_HOST: "cursor" });
+  assert.equal(res.result.tools.map((t) => t.name).sort().join(","), "BatchEdit,MultiRead,RunCompact");
 });
 
 // ---------- contextguard ----------
@@ -391,6 +396,25 @@ test("UsageStats: prices turns and credits lean tool calls and a guard-prompted 
   assert.match(t, /\| context guard \| 1 warned, 1 compacted \| – \| – \| \$0\.64 \| – \|/);
   assert.doesNotMatch(t, /RunCompact/, "savings from other projects are not counted here");
   assert.match(t, /Total: ≈ \$0\.74 \(20% of what these sessions would have cost\), ≈ 10s of model time/);
+});
+
+// ---------- cursor ----------
+test("cursor repo map: writes an always-applied rule once, git-excluded and not in the map", () => {
+  const run = () =>
+    spawnSync("node", [script("scripts/cursor-repo-map.mjs")], {
+      input: JSON.stringify({ hook_event_name: "sessionStart", workspace_roots: [fx] }),
+      env: { ...ENV, LEAN_FEATURES: "repomap", CURSOR_PROJECT_DIR: fx },
+      encoding: "utf8",
+    });
+  assert.equal(run().stdout.trim(), "{}");
+  run();
+  const rule = readFileSync(join(fx, ".cursor/rules/lean-repo-map.mdc"), "utf8");
+  assert.match(rule, /^---\ndescription: .+\nalwaysApply: true\n---\n/);
+  assert.match(rule, /money\.js: roundCents:2/);
+  assert.doesNotMatch(rule, /lean-repo-map/, "rule is excluded from its own map");
+  const exclude = readFileSync(join(fx, ".git/info/exclude"), "utf8");
+  assert.equal(exclude.split("\n").filter((l) => l === "/.cursor/rules/lean-repo-map.mdc").length, 1);
+  assert.equal(execFileSync("git", ["status", "--porcelain", ".cursor"], { cwd: fx }).toString(), "");
 });
 
 test("features.json: accepted features are on by default", () => {
