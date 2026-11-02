@@ -18,6 +18,8 @@ Every feature in this plugin was benchmarked against vanilla Claude Code and kep
 
 Measured together against vanilla Claude Code (8 tasks, two independent runs, every task passing): **-18% to -28% cost, -43% to -47% turns, -25% to -28% wall time, -34% to -39% output tokens.**
 
+How it was measured: Claude Opus 5.5 on Claude Code 2.1.301, plain Claude Code against Claude Code with lean. Every session ran with user plugins, hooks and connectors turned off. 3 tasks ran on a real Next.js app pinned to one commit and 5 on a generated repo built to exercise each feature, with every answer and edit checked automatically. Each arm got its own throwaway git clone, reset after every run; arms ran in parallel, with one unscored warm-up per repo. That's 80 sessions in the two main runs plus per-feature rounds, about $45 of API time. To run it yourself, see [Benchmark](#benchmark).
+
 ## Recommended setting (not something a plugin can set)
 
 The biggest cost in long sessions is context size: every turn re-reads the whole conversation. Claude Code can compact sooner. Add this to `~/.claude/settings.json`:

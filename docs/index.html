@@ -88,10 +88,10 @@ h1 { grid-column: 1 / 12; margin: 0 0 48px; font-size: clamp(48px, 8.6vw, 112px)
 .strip-foot b.red { color: var(--red); }
 
 /* headline figures */
-.figures { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: 24px; margin: 56px 0 0; padding-top: 16px; border-top: 4px solid var(--ink); }
+.figures { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: 24px; margin: 0; padding-top: 16px; border-top: 4px solid var(--ink); }
 .figures dt { font-size: 14px; font-weight: 500; }
-.figures dd { margin: 6px 0 0; font-size: clamp(32px, 4.4vw, 56px); font-weight: 700; letter-spacing: -0.045em; line-height: 1; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.fig-note { margin-top: 20px; }
+.figures dd { margin: 6px 0 0; font-size: clamp(28px, 3.2vw, 44px); font-weight: 700; letter-spacing: -0.045em; line-height: 1; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.fig-note { margin: 16px 0 48px; }
 
 /* sections: numeral and title on the left, content in columns 4-12 */
 .sec { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 24px; margin-top: 112px; padding-top: 16px; border-top: 4px solid var(--ink); }
@@ -169,23 +169,6 @@ td.n, th.n { text-align: right; padding-right: 0; font-variant-numeric: tabular-
 .big { font-size: clamp(48px, 6.4vw, 84px); font-weight: 700; letter-spacing: -0.05em; line-height: .95; color: var(--red); margin-bottom: 14px; }
 .ctx-text { border-top: 1px solid var(--ink); padding-top: 12px; }
 
-/* what didn't make it */
-.tally-bar { display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); gap: 3px; }
-.tally-bar i { height: 40px; background: var(--hair); }
-.tally-bar i.ship { background: var(--red); }
-.tally-legend { display: flex; flex-wrap: wrap; gap: 8px 32px; margin-top: 12px; font-size: 14px; font-weight: 500; }
-.tally-legend b { font-size: 28px; font-weight: 700; letter-spacing: -0.03em; margin-right: 6px; }
-.cuts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 24px; row-gap: 20px; margin: 40px 0 24px; }
-.cuts div { border-top: 1px solid var(--hair); padding-top: 10px; }
-.cuts h3 { font-size: 15px; text-decoration: line-through; text-decoration-thickness: 1px; text-decoration-color: var(--red); }
-.cuts p { font-size: 14px; color: var(--ink-2); margin: 0; }
-
-/* method */
-.method { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 24px; margin-bottom: 24px; }
-.method div { border-top: 1px solid var(--ink); padding-top: 12px; }
-.method b { display: block; font-size: 28px; font-weight: 700; letter-spacing: -0.03em; margin-bottom: 8px; }
-.method p { font-size: 15px; }
-
 /* install */
 .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 24px; row-gap: 32px; }
 .steps > div { min-width: 0; }
@@ -205,8 +188,7 @@ footer .mark { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
 
 @media (max-width: 900px) {
   .ctx { grid-template-columns: 1fr; }
-  .cuts { grid-template-columns: 1fr 1fr; }
-  .steps, .facts, .method, .gains { grid-template-columns: 1fr; row-gap: 24px; }
+  .steps, .facts, .gains { grid-template-columns: 1fr; row-gap: 24px; }
   .steps h3 { min-height: 0; }
 }
 @media (max-width: 760px) {
@@ -229,10 +211,10 @@ footer .mark { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
   .figures { grid-template-columns: 1fr 1fr; row-gap: 24px; }
   .row { grid-template-columns: minmax(0, 1fr) 52px; gap: 6px 12px; }
   .row .label { grid-column: 1 / -1; }
-  .features, .cuts { grid-template-columns: 1fr; }
+  .features { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { .cell { animation: none; opacity: 1; } .bar { transition: none; } }
-@media (forced-colors: active) { .bar.v, .cell, .legend i { background: CanvasText; } .bar.l, .lane.lean .cell, .tally-bar i.ship { background: Highlight; } }
+@media (forced-colors: active) { .bar.v, .cell, .legend i { background: CanvasText; } .bar.l, .lane.lean .cell { background: Highlight; } }
 </style>
 </head>
 <body>
@@ -254,7 +236,7 @@ footer .mark { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
   <div class="hero">
     <p class="kicker">A plugin for Claude Code and Cursor</p>
     <h1>Same tasks. Half the turns. <span class="get">Get Lean</span></h1>
-    <p class="lede">lean gives Claude a map of your repo so it stops exploring with <code>ls</code> and <code>find</code>, lets it make many edits in one call, trims test output, and warns you before a stale session re-bills its whole context.</p>
+    <p class="lede">Your coding agent wastes turns. It wanders your repo with <code>ls</code> and <code>find</code>, edits one file per call, and pastes whole test logs into its context. Every extra turn is more time you wait and more of your budget or usage limit gone. lean cuts those turns.</p>
     <div class="cmds">
       <p class="label">Run both inside Claude Code, then restart it.</p>
       <div class="code"><pre>/plugin marketplace add jkcailteux/lean-plugin</pre><button class="copy">Copy</button></div>
@@ -273,17 +255,16 @@ footer .mark { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
     </div>
   </figure>
 
-  <dl class="figures">
-    <div><dt>Cost per task</dt><dd>−18–28%</dd></div>
-    <div><dt>Turns</dt><dd>−43–47%</dd></div>
-    <div><dt>Wall time</dt><dd>−25–28%</dd></div>
-    <div><dt>Tasks still passing</dt><dd>40/40</dd></div>
-  </dl>
-  <p class="note fig-note">Compared with vanilla Claude Code on Claude Opus 5.5 over two runs of 8 tasks (48 and 32 sessions). The lower end of each range is the second run, made on the shipping build. Your savings depend on how you work; <code>/lean:stats</code> estimates them from your own transcripts.</p>
-
   <section class="sec" id="results">
     <h2><span class="num">01</span>Eight tasks, with and without</h2>
     <div class="body">
+      <dl class="figures">
+        <div><dt>Cost per task</dt><dd>−18–28%</dd></div>
+        <div><dt>Turns</dt><dd>−43–47%</dd></div>
+        <div><dt>Wall time</dt><dd>−25–28%</dd></div>
+        <div><dt>Tasks still passing</dt><dd>40/40</dd></div>
+      </dl>
+      <p class="note fig-note">Compared with vanilla Claude Code on Claude Opus 5.5 over two runs of 8 tasks (48 and 32 sessions). The lower end of each range is the second run, made on the shipping build. Your savings depend on how you work; <code>/lean:stats</code> estimates them from your own transcripts.</p>
       <p class="lead">From the second run: same tasks, same model, same repo snapshot. The biggest wins are where Claude would otherwise explore or edit file by file.</p>
       <div class="chart-head">
         <div class="seg" role="group" aria-label="Metric">
@@ -417,47 +398,8 @@ lean:RunCompact   708 tokens       <span class="g">$0.01</span></pre>
     </div>
   </section>
 
-  <section class="sec" id="cut">
-    <h2><span class="num">05</span>Sixteen ideas built. Four shipped.</h2>
-    <div class="body">
-      <p class="lead">Each of these worked as designed but didn't save enough in the benchmark or in replays of real usage.</p>
-      <div aria-hidden="true">
-        <div class="tally-bar"><i class="ship"></i><i class="ship"></i><i class="ship"></i><i class="ship"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-        <div class="tally-legend"><span><b>16</b>built and benchmarked</span><span><b>4</b>shipped</span><span><b>12</b>cut</span></div>
-      </div>
-      <div class="cuts">
-        <div><h3>Read cache</h3><p>0 identical re-reads in 615 real reads.</p></div>
-        <div><h3>Outline tool</h3><p>Never called in 9 sessions.</p></div>
-        <div><h3>Big-file outline, ReadSymbol</h3><p>Never fired; the repo map's line numbers already lead to range reads.</p></div>
-        <div><h3>Data-file summaries</h3><p>Claude queries big JSON and logs with <code>jq</code> and <code>grep</code> anyway.</p></div>
-        <div><h3>Grep junk filter</h3><p>−43% grep output on a polluted repo, but 0.04% of real usage, and it could hide code in <code>build/</code>.</p></div>
-        <div><h3>Bash output compaction hook</h3><p>No change; RunCompact already covers it.</p></div>
-        <div><h3>Slim mode</h3><p>Dropping core tools cost +10% and 4× the exploring turns.</p></div>
-        <div><h3>Cache-stable session prefix</h3><p>No measurable effect on prompt caching.</p></div>
-        <div><h3>Faster search index</h3><p>Tools are 0.4% of wall time; the model is the bottleneck.</p></div>
-        <div><h3>Write → Edit guard</h3><p>Full-file rewrites are under 1% of output.</p></div>
-        <div><h3>Dedupe repeat calls</h3><p>816 repeats added up to about 665 tokens.</p></div>
-        <div><h3>Parallelize single reads</h3><p>8 occurrences in all of history.</p></div>
-      </div>
-      <p class="note">The first version also ran two hooks on every tool call, about 55 ms each. The shipping build has none.</p>
-    </div>
-  </section>
-
-  <section class="sec" id="method">
-    <h2><span class="num">06</span>How it was measured</h2>
-    <div class="body">
-      <p class="lead">Plain Claude Code against Claude Code with lean.</p>
-      <div class="method">
-        <div><b>A</b><p>Every session ran with user plugins, hooks and connectors turned off, so lean was compared with plain Claude Code.</p></div>
-        <div><b>B</b><p>3 tasks on a real Next.js app pinned to one commit, and 5 on a generated repo built to exercise each feature. Every answer and edit was checked automatically.</p></div>
-        <div><b>C</b><p>Each arm got its own throwaway git clone, reset after every run, with arms running in parallel and one unscored warm-up per repo.</p></div>
-      </div>
-      <p class="note">Claude Opus 5.5 on Claude Code 2.1.301. 80 sessions in the two main runs plus per-feature rounds, about $45 of API time. The harness, tasks, fixture and results are in the <a href="https://github.com/jkcailteux/lean-plugin">repository</a>; the full write-up is <a href="https://github.com/jkcailteux/lean-plugin/blob/main/REPORT.md">REPORT.md</a>.</p>
-    </div>
-  </section>
-
   <section class="sec" id="install">
-    <h2><span class="num">07</span>Install</h2>
+    <h2><span class="num">05</span>Install</h2>
     <div class="body">
       <h3 class="host">Claude Code</h3>
       <p class="lead">Two commands, one restart.</p>
