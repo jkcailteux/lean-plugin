@@ -47,6 +47,8 @@ Each passes its mechanism tests; none improved benchmarks or matched real usage.
 
 ## Privacy: no telemetry
 
+Full policy: [PRIVACY.md](PRIVACY.md). Support: [GitHub issues](https://github.com/jkcailteux/lean-plugin/issues).
+
 - The plugin contains no network code. It never sends data anywhere.
 - The only commands it runs on its own are local `git ls-files` and `git rev-parse` for the repo map. RunCompact runs the commands Claude asks it to, like any shell tool.
 - Local files: `~/.claude/lean/` holds the savings log, per-session hook state and the repo-map cache. Delete it any time.
