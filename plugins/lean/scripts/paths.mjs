@@ -6,3 +6,8 @@ import { join } from "node:path";
 // LEAN_SAVINGS_LOG overrides the location (handy for tests and benchmarks).
 export const SAVINGS_LOG =
   process.env.LEAN_SAVINGS_LOG || join(homedir(), ".claude", "lean", "savings.jsonl");
+
+// Cursor workspace folders, newest first, recorded by the Cursor hook. The tool server falls back to
+// them when Cursor gives it no project folder. LEAN_CURSOR_ROOTS overrides the location.
+export const CURSOR_ROOTS =
+  process.env.LEAN_CURSOR_ROOTS || join(homedir(), ".claude", "lean", "cursor-roots.json");

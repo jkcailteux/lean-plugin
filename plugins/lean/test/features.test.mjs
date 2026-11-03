@@ -1,7 +1,7 @@
 // Mechanism tests for every lean feature. Hooks and the MCP server run as real subprocesses with
 // the same JSON Claude Code sends them, against a freshly generated fixture repo.
 //
-//   node --test plugins/lean/test/
+//   node --test plugins/lean/test/*.test.mjs
 import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
@@ -26,6 +26,7 @@ before(async () => {
   fx = mkdtempSync(join(tmpdir(), "lean-fx-"));
   generate(fx);
   stateDir = mkdtempSync(join(tmpdir(), "lean-state-"));
+  ENV.LEAN_CURSOR_ROOTS = join(stateDir, "cursor-roots.json"); // keep the Cursor hook off the real ~/.claude
 });
 
 let sid = 0;
