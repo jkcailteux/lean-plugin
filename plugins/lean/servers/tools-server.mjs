@@ -2,11 +2,12 @@
 // Zero-dependency MCP server over stdio: newline-delimited JSON-RPC 2.0.
 // No node_modules to ship, so the plugin works straight from a git clone.
 import { createInterface } from "node:readline";
-import { readFileSync, writeFileSync, appendFileSync, mkdirSync } from "node:fs";
-import { resolve, dirname } from "node:path";
+import { readFileSync, writeFileSync, appendFileSync, mkdirSync, existsSync, statSync } from "node:fs";
+import { resolve, dirname, isAbsolute, join } from "node:path";
+import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
-import { SAVINGS_LOG } from "../scripts/paths.mjs";
+import { SAVINGS_LOG, CURSOR_ROOTS } from "../scripts/paths.mjs";
 import { has } from "../scripts/features.mjs";
 import { outline, declarations } from "./outline.mjs";
 import { compact } from "../scripts/compact.mjs";
@@ -22,6 +23,25 @@ const HOST =
   process.env.LEAN_HOST ||
   (process.env.CLAUDECODE || process.env.CLAUDE_PROJECT_DIR ? "claude" : /cursor/i.test(process.env.VSCODE_NLS_CONFIG ?? "") ? "cursor" : "claude");
 
+// The home folder or "/" without a repo means no client told us the project folder.
+const noProject = (dir) => (dir === homedir() || dir === "/") && !existsSync(join(dir, ".git"));
+
+// Newest workspace folder the Cursor hook recorded that still exists.
+function recordedRoot() {
+  try {
+    return JSON.parse(readFileSync(CURSOR_ROOTS, "utf8")).find((d) => typeof d === "string" && statSync(d, { throwIfNoEntry: false })?.isDirectory());
+  } catch {
+    return undefined;
+  }
+}
+
+// Relative paths against a home folder or "/" would fail with a bare ENOENT, so say why instead.
+function resolvePath(path) {
+  if (!isAbsolute(path) && noProject(ROOT))
+    throw new Error(`lean: no project folder found (working in ${ROOT}). Use absolute paths, or pass cwd to RunCompact.`);
+  return resolve(ROOT, path);
+}
+
 // ---------- tools ----------
 
 function multiRead({ files, maxLines = 400 }) {
@@ -29,7 +49,7 @@ function multiRead({ files, maxLines = 400 }) {
     .map(({ path, start = 1, end }) => {
       let text;
       try {
-        text = readFileSync(resolve(ROOT, path), "utf8");
+        text = readFileSync(resolvePath(path), "utf8");
       } catch (err) {
         return `== ${path}: ${err.code || err.message}`;
       }
@@ -48,9 +68,10 @@ function multiRead({ files, maxLines = 400 }) {
 
 const MAX_CAPTURE = 20_000_000;
 
-function runCompact({ command, timeoutSec = 300, context = 2, tail = 15 }) {
+function runCompact({ command, cwd, timeoutSec = 300, context = 2, tail = 15 }) {
+  const dir = resolvePath(cwd ?? ".");
   return new Promise((done) => {
-    const child = spawn(command, { cwd: ROOT, shell: true });
+    const child = spawn(command, { cwd: dir, shell: true });
     let out = "";
     const collect = (d) => {
       if (out.length < MAX_CAPTURE) out += d;
@@ -64,7 +85,7 @@ function runCompact({ command, timeoutSec = 300, context = 2, tail = 15 }) {
     });
     child.on("close", (code, signal) => {
       clearTimeout(timer);
-      done(compact(out, code, signal, { context, tail }));
+      done(compact(out, code, signal, { context, tail, cwd: dir }));
     });
   });
 }
@@ -81,7 +102,7 @@ function outlineFiles({ paths }) {
   const text = paths
     .map((p) => {
       try {
-        const abs = resolve(ROOT, p);
+        const abs = resolvePath(p);
         baseline += readFileSync(abs, "utf8").length; // what reading the whole file would send
         return outline(abs, p);
       } catch (err) {
@@ -93,7 +114,7 @@ function outlineFiles({ paths }) {
 }
 
 function readSymbol({ path, name }) {
-  const abs = resolve(ROOT, path);
+  const abs = resolvePath(path);
   const src = readFileSync(abs, "utf8");
   const { lines, decls } = declarations(src);
   const hits = decls.filter((d) => d.name === name).slice(0, 3);
@@ -110,7 +131,7 @@ function readSymbol({ path, name }) {
 function batchEdit({ edits }) {
   const byFile = new Map();
   edits.forEach((e, i) => {
-    const abs = resolve(ROOT, e.path);
+    const abs = resolvePath(e.path);
     if (!byFile.has(abs)) byFile.set(abs, []);
     byFile.get(abs).push({ ...e, i });
   });
@@ -249,6 +270,7 @@ const TOOLS = [
       type: "object",
       properties: {
         command: { type: "string" },
+        cwd: { type: "string", description: "Folder to run in, absolute or relative to the project root (default: the project root)." },
         timeoutSec: { type: "integer", description: "Kill after this many seconds (default 300)." },
         context: { type: "integer", description: "Lines kept around each error line (default 2)." },
         tail: { type: "integer", description: "Trailing lines always kept (default 15)." },
@@ -328,6 +350,9 @@ async function handle(method, params) {
       return { tools: TOOLS.filter(enabled).map(({ run, feature, core, ...def }) => def) };
     case "tools/call": {
       await rootsReady;
+      // No env var and no root from the client: use the workspace the Cursor hook recorded. Checked per
+      // call, since the hook may write the file after the server starts.
+      if (!ENV_ROOT && noProject(ROOT)) ROOT = recordedRoot() ?? ROOT;
       const tool = TOOLS.find((t) => t.name === params.name && enabled(t));
       if (!tool) throw rpcError(-32602, `Unknown tool: ${params.name}`);
       try {

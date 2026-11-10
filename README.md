@@ -18,6 +18,8 @@ Every feature in this plugin was benchmarked against vanilla Claude Code and kep
 
 Measured together against vanilla Claude Code (8 tasks, two independent runs, every task passing): **-18% to -28% cost, -43% to -47% turns, -25% to -28% wall time, -34% to -39% output tokens.**
 
+How it was measured: Claude Opus 5.5 on Claude Code 2.1.301, plain Claude Code against Claude Code with lean. Every session ran with user plugins, hooks and connectors turned off. 3 tasks ran on a real Next.js app pinned to one commit and 5 on a generated repo built to exercise each feature, with every answer and edit checked automatically. Each arm got its own throwaway git clone, reset after every run; arms ran in parallel, with one unscored warm-up per repo. That's 80 sessions in the two main runs plus per-feature rounds, about $45 of API time. To run it yourself, see [Benchmark](#benchmark).
+
 ## Recommended setting (not something a plugin can set)
 
 The biggest cost in long sessions is context size: every turn re-reads the whole conversation. Claude Code can compact sooner. Add this to `~/.claude/settings.json`:
@@ -45,9 +47,11 @@ Each passes its mechanism tests; none improved benchmarks or matched real usage.
 
 ## Privacy: no telemetry
 
+Full policy: [PRIVACY.md](PRIVACY.md). Support: [GitHub issues](https://github.com/jkcailteux/lean-plugin/issues).
+
 - The plugin contains no network code. It never sends data anywhere.
 - The only commands it runs on its own are local `git ls-files` and `git rev-parse` for the repo map. RunCompact runs the commands Claude asks it to, like any shell tool.
-- Local files: `~/.claude/lean/` holds the savings log, per-session hook state and the repo-map cache. Delete it any time.
+- Local files: `~/.claude/lean/` holds the savings log, per-session hook state, the repo-map cache and (in Cursor) recent workspace folder paths. Delete it any time.
 - `/lean:stats` reads the transcripts Claude Code already keeps in `~/.claude/projects/` and prints the result in your session. Nothing leaves your machine.
 
 ## Install in Claude Code
@@ -106,7 +110,7 @@ What you get in Cursor:
 | UsageStats | Ask the agent what lean saved: tokens kept out of context and round trips saved, per tool, for this project (`allProjects` for all), from lean's local savings log. When this project's Cursor transcripts are on disk, the skipped round trips are also a share of the model calls that ran. Prompt times are stored to the minute, so that share is a call ratio, not wall-clock time. No spend or dollars: Cursor doesn't share token counts, so see Usage in the Cursor dashboard. The repo map's effect isn't counted |
 | Context guard, `/lean:stats` | Not available: they read Claude Code transcripts |
 
-The Cursor app starts MCP servers in `/`, so the server asks Cursor for the workspace folder (MCP roots) and resolves relative paths and the per-project stats against it.
+The Cursor app starts MCP servers in `/`, so the server asks Cursor for the workspace folder (MCP roots) and resolves relative paths and the per-project stats against it. If Cursor returns none, it uses the newest workspace the Cursor hook recorded in `~/.claude/lean/cursor-roots.json`. If it still has no project folder, relative paths fail with a message saying so; RunCompact also takes a `cwd`.
 
 The Cursor port is not benchmarked yet: every measured saving in this README comes from Claude Code.
 
@@ -116,7 +120,7 @@ The Cursor port is not benchmarked yet: every measured saving in this README com
 - `LEAN_FEATURES=repomap,batchedit,junkfilter claude`: override for one session (comma or `+` separated; empty string turns everything optional off).
 - `.claude/lean-notes.md` in a project: injected into every session there.
 - Context guard thresholds: `LEAN_GUARD_IDLE_MIN` (default 58), `LEAN_GUARD_MIN_CTX` (150000), `LEAN_GUARD_LARGE_CTX` (250000).
-- Files live in `~/.claude/lean/` (savings log, hook state, repo-map cache). Delete the folder any time. In Claude Code usage stats come from its own transcripts; the savings log holds one line per lean tool call (tool, sizes, round trips saved, project folder). The Cursor report reads that log, and counts model calls from the transcripts Cursor already keeps in `~/.cursor/projects/`.
+- Files live in `~/.claude/lean/` (savings log, hook state, repo-map cache, Cursor workspace list). Delete the folder any time. In Claude Code usage stats come from its own transcripts; the savings log holds one line per lean tool call (tool, sizes, round trips saved, project folder). The Cursor report reads that log, and counts model calls from the transcripts Cursor already keeps in `~/.cursor/projects/`.
 - `/lean:stats` (or "show lean stats for the last 72h") prices each turn from the transcript's token counts at API list prices, then credits lean with: output each tool kept out of context (one cache write plus a re-read on every later turn until compaction), each round trip saved (at that session's average turn cost and the median turn time), and each context-guard warning that was followed by `/compact`. Not counted: the repo map's shorter exploration, which only the benchmark measures. On a subscription, read the dollars as usage-limit headroom.
 
 Default hooks run once per session (SessionStart) and once per prompt (UserPromptSubmit), never per tool call. They never grant permissions or hold a prompt. (The opt-in experimental hooks can deny a tool call; each denial says how to go ahead anyway.)
@@ -124,10 +128,10 @@ Default hooks run once per session (SessionStart) and once per prompt (UserPromp
 ## Test
 
 ```bash
-node --test plugins/lean/test/features.test.mjs
+node --test plugins/lean/test/*.test.mjs
 ```
 
-31 mechanism tests: every hook and tool runs as a real subprocess with the JSON Claude Code (or Cursor) sends, against a generated fixture repo.
+39 mechanism tests: every hook and tool runs as a real subprocess with the JSON Claude Code (or Cursor) sends, against a generated fixture repo. `regression.test.mjs` covers what broke on a large Gradle/Kotlin repo, tested for any stack: stack traces that open in framework code, `./gradlew` and `./mvnw`, Java/Kotlin/Swift/C# symbols, the oversized-repo map, and a missing project folder.
 
 ## Benchmark
 

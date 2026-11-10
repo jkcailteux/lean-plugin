@@ -12,26 +12,38 @@ const MAX_FILE_BYTES = 200_000;
 const MAX_DATA_FILES = 8; // a dir with more non-code files than this lists them as one count line
 const SKIP = /(^|\/)(node_modules|dist|build|out|\.next|vendor|coverage|__snapshots__)\/|\.(min\.js|lock|map)$|(^|\/)(package-lock\.json|pnpm-lock\.yaml|yarn\.lock)$/;
 const CODE = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py", ".go", ".rs", ".rb", ".java", ".kt", ".swift", ".cs"]);
+// Any dir named like a test dir: test, tests, testFixtures, androidTest, UnitTests, __tests__, spec.
+const TEST_DIR = /(^|\/)(?:__tests__|tests?[^/]*|[^/]*Tests?|specs?)(\/|$)/;
 
 // One regex per language family; group 1 is the symbol name. Top-level declarations only.
+const ANNOTATIONS = String.raw`(?:@[\w.:]+(?:\([^)\n]*\))?\s+)*`;
+const MODIFIERS = String.raw`(?:[a-z][a-z-]*\s+){0,6}`; // public, data, sealed, non-sealed, suspend, ...
+const TYPES = "class|interface|enum|record|struct|protocol|object|typealias|@interface";
 const PATTERNS = {
   js: /^export\s+(?:default\s+)?(?:async\s+)?(?:function\*?|class|const|let|var|type|interface|enum)\s+([A-Za-z_$][\w$]*)/gm,
   py: /^(?:async\s+)?(?:def|class)\s+([A-Za-z_]\w*)/gm,
   go: /^(?:func(?:\s+\([^)]*\))?|type)\s+([A-Z]\w*)/gm,
   rs: /^pub\s+(?:async\s+)?(?:fn|struct|enum|trait|type|mod)\s+([A-Za-z_]\w*)/gm,
   rb: /^\s{0,2}(?:def|class|module)\s+([A-Za-z_][\w.]*)/gm,
-  jvm: /^\s{0,4}(?:public\s+)?(?:static\s+)?(?:final\s+)?(?:class|interface|enum|record|fun|func|struct|protocol)\s+([A-Za-z_]\w*)/gm,
+  // Java, Kotlin, Swift, C#: any lowercase modifier words, then a declaration keyword. Functions only at
+  // column 0 (methods stay out); types may be indented up to 4 (C# namespaces, nested types). Generics
+  // and an extension receiver are skipped (`fun <T> List<T>.second()` -> second).
+  decl: new RegExp(
+    String.raw`^(?:\s{1,4}(?=${ANNOTATIONS}${MODIFIERS}(?:${TYPES})\s))?${ANNOTATIONS}${MODIFIERS}` +
+      String.raw`(?:${TYPES}|fun|func)\s+(?:<[^>\n]*>\s*)?(?:[\w.]+(?:<[^>\n]*>)?\??\.)?([A-Za-z_]\w*)`,
+    "gm"
+  ),
 };
 const family = (ext) =>
-  ({ ".py": "py", ".go": "go", ".rs": "rs", ".rb": "rb", ".java": "jvm", ".kt": "jvm", ".swift": "jvm", ".cs": "jvm" })[ext] ?? "js";
+  ({ ".py": "py", ".go": "go", ".rs": "rs", ".rb": "rb", ".java": "decl", ".kt": "decl", ".swift": "decl", ".cs": "decl" })[ext] ?? "js";
 
 function symbols(file) {
   try {
     if (statSync(file).size > MAX_FILE_BYTES) return [];
     const src = readFileSync(file, "utf8");
-    // name:line, so Claude can Read just that range
+    // name:line, so Claude can Read just that range. The line is the name's, not a leading annotation's.
     return [...src.matchAll(PATTERNS[family(extname(file))])].map(
-      (m) => `${m[1]}:${src.slice(0, m.index).split("\n").length}`
+      (m) => `${m[1]}:${src.slice(0, m.index + m[0].length - m[1].length).split("\n").length}`
     );
   } catch {
     return [];
@@ -52,6 +64,25 @@ function countExts(files) {
   const n = new Map();
   for (const f of files) n.set(extname(f) || "(none)", (n.get(extname(f) || "(none)") ?? 0) + 1);
   return [...n].sort((a, b) => b[1] - a[1]).map(([e, c]) => `${c} ${e}`).join(", ");
+}
+
+// Pass 3, for repos too big for file names: dirs only, source dirs first (most code files first),
+// then test dirs, then dirs with no code. Cut at a whole line and say how many were left out.
+function dirsOnly(byDir) {
+  const code = new Map([...byDir].map(([d, fs]) => [d, fs.filter((f) => CODE.has(extname(f))).length]));
+  const rank = (d) => (!code.get(d) ? 2 : TEST_DIR.test(d) ? 1 : 0);
+  const dirs = [...byDir.keys()].sort((a, b) => rank(a) - rank(b) || code.get(b) - code.get(a) || a.localeCompare(b));
+  const lines = ["(repo too large for symbols: directories only, source first)"];
+  let len = lines[0].length;
+  for (const d of dirs) {
+    const line = `${d === "." ? "(root)" : d}/ (${byDir.get(d).length} files)`;
+    if (len + line.length + 1 > MAX_CHARS - 60) break; // leave room for the "more" line
+    lines.push(line);
+    len += line.length + 1;
+  }
+  const left = dirs.length - (lines.length - 1);
+  if (left) lines.push(`… ${left} more directories not shown`);
+  return lines.join("\n");
 }
 
 function render(root, files) {
@@ -83,7 +114,7 @@ function render(root, files) {
     const text = lines.join("\n");
     if (text.length <= MAX_CHARS) return text;
   }
-  return [...byDir.keys()].sort().map((d) => `${d}/ (${byDir.get(d).length} files)`).join("\n").slice(0, MAX_CHARS);
+  return dirsOnly(byDir);
 }
 
 export function repoMap(root) {
@@ -97,7 +128,7 @@ export function repoMap(root) {
   }
   if (!files.length) return null;
 
-  const key = createHash("sha1").update(`v2|${root}|${head}|${files.join("\n")}`).digest("hex").slice(0, 16);
+  const key = createHash("sha1").update(`v4|${root}|${head}|${files.join("\n")}`).digest("hex").slice(0, 16);
   const cacheFile = join(homedir(), ".claude", "lean", "repomap", `${key}.txt`);
   try {
     return readFileSync(cacheFile, "utf8");

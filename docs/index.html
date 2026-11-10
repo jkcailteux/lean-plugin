@@ -88,10 +88,10 @@ h1 { grid-column: 1 / 12; margin: 0 0 48px; font-size: clamp(48px, 8.6vw, 112px)
 .strip-foot b.red { color: var(--red); }
 
 /* headline figures */
-.figures { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: 24px; margin: 56px 0 0; padding-top: 16px; border-top: 4px solid var(--ink); }
+.figures { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: 24px; margin: 0; }
 .figures dt { font-size: 14px; font-weight: 500; }
-.figures dd { margin: 6px 0 0; font-size: clamp(32px, 4.4vw, 56px); font-weight: 700; letter-spacing: -0.045em; line-height: 1; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.fig-note { margin-top: 20px; }
+.figures dd { margin: 6px 0 0; font-size: clamp(28px, 3.2vw, 44px); font-weight: 700; letter-spacing: -0.045em; line-height: 1; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.fig-note { margin: 16px 0 48px; }
 
 /* sections: numeral and title on the left, content in columns 4-12 */
 .sec { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: 24px; margin-top: 112px; padding-top: 16px; border-top: 4px solid var(--ink); }
@@ -130,11 +130,6 @@ th { font-weight: 500; border-bottom-color: var(--ink); }
 td.n, th.n { text-align: right; padding-right: 0; font-variant-numeric: tabular-nums; }
 .tablewrap { overflow-x: auto; margin-top: 12px; }
 
-.gains { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 24px; margin-top: 40px; }
-.gains div { border-top: 1px solid var(--ink); padding-top: 12px; }
-.gains b { display: block; font-size: 34px; font-weight: 700; letter-spacing: -0.04em; line-height: 1.05; margin-bottom: 10px; }
-.gains h3 { font-size: 15px; margin-bottom: 4px; }
-.gains p { font-size: 14px; color: var(--ink-2); margin: 0; }
 
 /* tools */
 .features { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; row-gap: 48px; }
@@ -169,23 +164,6 @@ td.n, th.n { text-align: right; padding-right: 0; font-variant-numeric: tabular-
 .big { font-size: clamp(48px, 6.4vw, 84px); font-weight: 700; letter-spacing: -0.05em; line-height: .95; color: var(--red); margin-bottom: 14px; }
 .ctx-text { border-top: 1px solid var(--ink); padding-top: 12px; }
 
-/* what didn't make it */
-.tally-bar { display: grid; grid-template-columns: repeat(16, minmax(0, 1fr)); gap: 3px; }
-.tally-bar i { height: 40px; background: var(--hair); }
-.tally-bar i.ship { background: var(--red); }
-.tally-legend { display: flex; flex-wrap: wrap; gap: 8px 32px; margin-top: 12px; font-size: 14px; font-weight: 500; }
-.tally-legend b { font-size: 28px; font-weight: 700; letter-spacing: -0.03em; margin-right: 6px; }
-.cuts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 24px; row-gap: 20px; margin: 40px 0 24px; }
-.cuts div { border-top: 1px solid var(--hair); padding-top: 10px; }
-.cuts h3 { font-size: 15px; text-decoration: line-through; text-decoration-thickness: 1px; text-decoration-color: var(--red); }
-.cuts p { font-size: 14px; color: var(--ink-2); margin: 0; }
-
-/* method */
-.method { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 24px; margin-bottom: 24px; }
-.method div { border-top: 1px solid var(--ink); padding-top: 12px; }
-.method b { display: block; font-size: 28px; font-weight: 700; letter-spacing: -0.03em; margin-bottom: 8px; }
-.method p { font-size: 15px; }
-
 /* install */
 .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 24px; row-gap: 32px; }
 .steps > div { min-width: 0; }
@@ -205,8 +183,7 @@ footer .mark { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
 
 @media (max-width: 900px) {
   .ctx { grid-template-columns: 1fr; }
-  .cuts { grid-template-columns: 1fr 1fr; }
-  .steps, .facts, .method, .gains { grid-template-columns: 1fr; row-gap: 24px; }
+  .steps, .facts { grid-template-columns: 1fr; row-gap: 24px; }
   .steps h3 { min-height: 0; }
 }
 @media (max-width: 760px) {
@@ -229,10 +206,10 @@ footer .mark { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
   .figures { grid-template-columns: 1fr 1fr; row-gap: 24px; }
   .row { grid-template-columns: minmax(0, 1fr) 52px; gap: 6px 12px; }
   .row .label { grid-column: 1 / -1; }
-  .features, .cuts { grid-template-columns: 1fr; }
+  .features { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { .cell { animation: none; opacity: 1; } .bar { transition: none; } }
-@media (forced-colors: active) { .bar.v, .cell, .legend i { background: CanvasText; } .bar.l, .lane.lean .cell, .tally-bar i.ship { background: Highlight; } }
+@media (forced-colors: active) { .bar.v, .cell, .legend i { background: CanvasText; } .bar.l, .lane.lean .cell { background: Highlight; } }
 </style>
 </head>
 <body>
@@ -254,7 +231,7 @@ footer .mark { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
   <div class="hero">
     <p class="kicker">A plugin for Claude Code and Cursor</p>
     <h1>Same tasks. Half the turns. <span class="get">Get Lean</span></h1>
-    <p class="lede">lean gives Claude a map of your repo so it stops exploring with <code>ls</code> and <code>find</code>, lets it make many edits in one call, trims test output, and warns you before a stale session re-bills its whole context.</p>
+    <p class="lede">Your coding agent wastes turns: wandering your repo, editing one file per call, pasting whole test logs. Every turn costs you time and budget. lean cuts them.</p>
     <div class="cmds">
       <p class="label">Run both inside Claude Code, then restart it.</p>
       <div class="code"><pre>/plugin marketplace add jkcailteux/lean-plugin</pre><button class="copy">Copy</button></div>
@@ -273,18 +250,17 @@ footer .mark { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
     </div>
   </figure>
 
-  <dl class="figures">
-    <div><dt>Cost per task</dt><dd>−18–28%</dd></div>
-    <div><dt>Turns</dt><dd>−43–47%</dd></div>
-    <div><dt>Wall time</dt><dd>−25–28%</dd></div>
-    <div><dt>Tasks still passing</dt><dd>40/40</dd></div>
-  </dl>
-  <p class="note fig-note">Compared with vanilla Claude Code on Claude Opus 5.5 over two runs of 8 tasks (48 and 32 sessions). The lower end of each range is the second run, made on the shipping build. Your savings depend on how you work; <code>/lean:stats</code> estimates them from your own transcripts.</p>
-
   <section class="sec" id="results">
     <h2><span class="num">01</span>Eight tasks, with and without</h2>
     <div class="body">
-      <p class="lead">From the second run: same tasks, same model, same repo snapshot. The biggest wins are where Claude would otherwise explore or edit file by file.</p>
+      <dl class="figures">
+        <div><dt>Cost per task</dt><dd>−18–28%</dd></div>
+        <div><dt>Turns</dt><dd>−43–47%</dd></div>
+        <div><dt>Wall time</dt><dd>−25–28%</dd></div>
+        <div><dt>Tasks still passing</dt><dd>40/40</dd></div>
+      </dl>
+      <p class="note fig-note">Against vanilla Claude Code on Claude Opus 5.5: 8 tasks, two runs. Yours will vary; <code>/lean:stats</code> estimates it.</p>
+      <p class="lead">Biggest wins where Claude would otherwise explore or edit file by file.</p>
       <div class="chart-head">
         <div class="seg" role="group" aria-label="Metric">
           <button data-m="cost" aria-pressed="true">Cost</button>
@@ -301,25 +277,19 @@ footer .mark { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
         <summary>Show as a table</summary>
         <div class="tablewrap"><table id="tbl"></table></div>
       </details>
-      <p class="note">Mean of 2 runs per task per arm. Trace callers, big data files and one grep were re-run and show the mean of 8. With 2 runs a single task can swing 10–50% by chance, so read the pattern rather than any one bar. lean loses on a one-shot grep (about $0.07): the repo map and tool definitions add about a cent of fixed overhead.</p>
-
-      <div class="gains">
-        <div><b>29.5 → 6</b><h3>Multi-file edit</h3><p>BatchEdit makes every change in one call. Half the time, 31–37% less money.</p></div>
-        <div><b>−47 to −60%</b><h3>Finding code in a big file</h3><p>Explaining a function at line 1,958 of a 2,000-line file. The repo map gives the line, so Claude reads a range, not the file.</p></div>
-        <div><b>4 → 2</b><h3>Exploring a codebase</h3><p>Turns to answer "how is this structured?", and 35% faster, since the map is already in context.</p></div>
-      </div>
+      <p class="note">Mean of 2 to 8 runs per task. Single tasks swing by chance, so read the pattern. On a one-shot grep lean costs about a cent more.</p>
     </div>
   </section>
 
   <section class="sec" id="inside">
     <h2><span class="num">02</span>Four small tools, no per-call hooks</h2>
     <div class="body">
-      <p class="lead">Hooks run once per session and once per prompt, never per tool call. The tools are one Node file with no dependencies.</p>
+      <p class="lead">One Node file, no dependencies. Hooks run once per session, never per tool call.</p>
       <div class="features">
         <article class="feature">
           <span class="num">Tool 1</span>
           <h3>Repo map</h3>
-          <p>At most about 2k tokens at session start: every tracked file and its top-level symbols as <code>name:line</code>, with folders of data files collapsed to a count. Cached per git HEAD and never re-injected on resume.</p>
+          <p>About 2k tokens at session start: every file and its top-level symbols as <code>name:line</code>.</p>
 <div class="specimen"><span class="k">plugins/lean/scripts/</span>
   context-guard.mjs: <span class="g">lastTurn:22, guard:50</span>
   repo-map.mjs: <span class="g">repoMap:89</span>
@@ -332,7 +302,7 @@ footer .mark { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
         <article class="feature">
           <span class="num">Tool 2</span>
           <h3>BatchEdit</h3>
-          <p>Many search-and-replace edits across many files in one call, all-or-nothing per file, with a one-line reply and no prior read. Each saved round trip also saves a full re-read of the conversation.</p>
+          <p>Many edits across many files in one call, no prior read.</p>
 <div class="specimen"><span class="k">BatchEdit</span>({ edits: [
   { path: <span class="g">"src/api/users.ts"</span>,
     old: <span class="g">"fetch(url)"</span>,
@@ -346,7 +316,7 @@ footer .mark { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
         <article class="feature">
           <span class="num">Tool 3</span>
           <h3>MultiRead and RunCompact</h3>
-          <p>Read several files or line ranges in one call. Run tests and builds and get back only the failures and the tail.</p>
+          <p>Several files in one read. Test runs that return only the failures.</p>
           <div class="tok" role="img" aria-label="A 320-test run: about 4,000 tokens of raw output, about 300 with RunCompact">
             <div class="tok-row">Raw output<div class="tok-bar"><i style="width:78%;background:var(--ink)"></i><span>~4,000</span></div></div>
             <div class="tok-row">RunCompact<div class="tok-bar"><i style="width:6%;background:var(--red)"></i><span>~300 tokens</span></div></div>
@@ -358,7 +328,7 @@ footer .mark { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
         <article class="feature">
           <span class="num">Tool 4</span>
           <h3>Context guard</h3>
-          <p>If you return to a 300k-token session after the prompt cache has expired, your next message re-writes all of it at the cache-write price. lean tells you once and suggests <code>/compact</code>. It never blocks your prompt.</p>
+          <p>Back in a big session after the cache expired? lean says so once and suggests <code>/compact</code>.</p>
 <div class="specimen"><span class="k">lean:</span> this session holds ~340k tokens of context
 and was idle 2.0h, so the prompt cache expired and
 this turn re-writes all of it at cache-write price.
@@ -373,7 +343,7 @@ carry a summary instead of all ~340k tokens.</div>
   <section class="sec" id="stats">
     <h2><span class="num">03</span>See where your tokens go</h2>
     <div class="body">
-      <p class="lead"><code>/lean:stats</code> reads the transcripts Claude Code already keeps, so it costs nothing per call. It prices each turn at API list prices, shows which tools fill your context, and estimates what lean saved.</p>
+      <p class="lead"><code>/lean:stats</code> shows what your sessions cost, which tools fill your context, and what lean saved.</p>
 <pre class="term"><b>&gt; /lean:stats</b>
 Last 24h · 1 session(s) in this project
 Spent ≈ $18 at API list prices over 161 turns
@@ -388,7 +358,7 @@ lean:RunCompact   708 tokens       <span class="g">$0.01</span></pre>
   <section class="sec" id="context">
     <h2><span class="num">04</span>The leak isn't tool output. It's context.</h2>
     <div class="body">
-      <p class="lead">Every turn re-reads the whole conversation. In long sessions, the turns carrying hundreds of thousands of tokens are where most of the money goes, and a session resumed after the one-hour cache expires pays to write all of it again.</p>
+      <p class="lead">Every turn re-reads the whole conversation, so long sessions are where the money goes.</p>
       <div class="ctx">
         <figure class="schem">
           <svg viewBox="0 0 560 280" role="img" aria-label="Schematic: without compaction, context grows through a session and is re-written in full after an idle gap; compacting at 200k keeps it in a sawtooth below that line">
@@ -410,54 +380,14 @@ lean:RunCompact   708 tokens       <span class="g">$0.01</span></pre>
         </figure>
         <div class="ctx-text">
           <div class="big">−50 to −60%</div>
-          <p>simulated spend when replaying 8,158 real Claude Code turns with the guard plus <code>autoCompactWindow: 200000</code>. So lean comes with a policy as well as tools: compact sooner, and don't carry a large stale session forward without knowing it.</p>
-          <p class="note">The simulation re-prices each recorded turn and charges every compaction a full uncached read, its summary, and 30–60k tokens of re-reads afterwards. It can't price detail lost to compaction, which is the trade-off.</p>
+          <p>simulated spend over 8,158 real turns with the guard plus <code>autoCompactWindow: 200000</code>. Compact sooner.</p>
         </div>
       </div>
     </div>
   </section>
 
-  <section class="sec" id="cut">
-    <h2><span class="num">05</span>Sixteen ideas built. Four shipped.</h2>
-    <div class="body">
-      <p class="lead">Each of these worked as designed but didn't save enough in the benchmark or in replays of real usage.</p>
-      <div aria-hidden="true">
-        <div class="tally-bar"><i class="ship"></i><i class="ship"></i><i class="ship"></i><i class="ship"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-        <div class="tally-legend"><span><b>16</b>built and benchmarked</span><span><b>4</b>shipped</span><span><b>12</b>cut</span></div>
-      </div>
-      <div class="cuts">
-        <div><h3>Read cache</h3><p>0 identical re-reads in 615 real reads.</p></div>
-        <div><h3>Outline tool</h3><p>Never called in 9 sessions.</p></div>
-        <div><h3>Big-file outline, ReadSymbol</h3><p>Never fired; the repo map's line numbers already lead to range reads.</p></div>
-        <div><h3>Data-file summaries</h3><p>Claude queries big JSON and logs with <code>jq</code> and <code>grep</code> anyway.</p></div>
-        <div><h3>Grep junk filter</h3><p>−43% grep output on a polluted repo, but 0.04% of real usage, and it could hide code in <code>build/</code>.</p></div>
-        <div><h3>Bash output compaction hook</h3><p>No change; RunCompact already covers it.</p></div>
-        <div><h3>Slim mode</h3><p>Dropping core tools cost +10% and 4× the exploring turns.</p></div>
-        <div><h3>Cache-stable session prefix</h3><p>No measurable effect on prompt caching.</p></div>
-        <div><h3>Faster search index</h3><p>Tools are 0.4% of wall time; the model is the bottleneck.</p></div>
-        <div><h3>Write → Edit guard</h3><p>Full-file rewrites are under 1% of output.</p></div>
-        <div><h3>Dedupe repeat calls</h3><p>816 repeats added up to about 665 tokens.</p></div>
-        <div><h3>Parallelize single reads</h3><p>8 occurrences in all of history.</p></div>
-      </div>
-      <p class="note">The first version also ran two hooks on every tool call, about 55 ms each. The shipping build has none.</p>
-    </div>
-  </section>
-
-  <section class="sec" id="method">
-    <h2><span class="num">06</span>How it was measured</h2>
-    <div class="body">
-      <p class="lead">Plain Claude Code against Claude Code with lean.</p>
-      <div class="method">
-        <div><b>A</b><p>Every session ran with user plugins, hooks and connectors turned off, so lean was compared with plain Claude Code.</p></div>
-        <div><b>B</b><p>3 tasks on a real Next.js app pinned to one commit, and 5 on a generated repo built to exercise each feature. Every answer and edit was checked automatically.</p></div>
-        <div><b>C</b><p>Each arm got its own throwaway git clone, reset after every run, with arms running in parallel and one unscored warm-up per repo.</p></div>
-      </div>
-      <p class="note">Claude Opus 5.5 on Claude Code 2.1.301. 80 sessions in the two main runs plus per-feature rounds, about $45 of API time. The harness, tasks, fixture and results are in the <a href="https://github.com/jkcailteux/lean-plugin">repository</a>; the full write-up is <a href="https://github.com/jkcailteux/lean-plugin/blob/main/REPORT.md">REPORT.md</a>.</p>
-    </div>
-  </section>
-
   <section class="sec" id="install">
-    <h2><span class="num">07</span>Install</h2>
+    <h2><span class="num">05</span>Install</h2>
     <div class="body">
       <h3 class="host">Claude Code</h3>
       <p class="lead">Two commands, one restart.</p>
@@ -477,13 +407,13 @@ lean:RunCompact   708 tokens       <span class="g">$0.01</span></pre>
         <div><span class="n">2</span><h3>Copy the plugin into Cursor</h3>
           <div class="code"><pre>rsync -a --exclude test lean-plugin/plugins/lean/ ~/.cursor/plugins/local/lean/</pre><button class="copy">Copy</button></div></div>
         <div><span class="n">3</span><h3>Turn on hooks in Cursor Settings</h3>
-          <p class="note">Turn on <b>Include Third-Party Plugins, Skills, and Other Configs</b>. Cursor runs plugin hooks only with it on, and the repo map is written by a hook.</p></div>
+          <p class="note">Turn on <b>Include Third-Party Plugins, Skills, and Other Configs</b>. The repo map needs it.</p></div>
       </div>
-      <p class="note">Already have lean in Claude Code? With that setting on, Cursor imports it and you get MultiRead, BatchEdit and RunCompact. The repo-map rule, the rule that steers the agent to the tools, and a scout agent on Cursor's fast model come only from the Cursor copy. In Cursor, ask the agent what lean saved: UsageStats then reports the tokens kept out of context and the round trips saved, per tool and per project, from lean's own local log. When Cursor's transcripts are on disk it also reports those skipped calls as a share of the model calls that ran; prompt times are stored to the minute, so that share is a call ratio, not wall-clock time. Cursor doesn't share token counts or cost, so for spend use Cursor's usage dashboard. The context guard reads Claude Code transcripts, so it doesn't work in Cursor. Every number on this page was measured in Claude Code; the Cursor port isn't benchmarked yet.</p>
+      <p class="note">In Cursor, ask the agent what lean saved. Skipped round trips are a share of the model calls in Cursor's transcripts; prompt times are stored to the minute, so that share is a call ratio, not wall-clock time. The context guard is Claude Code only, and the Cursor port isn't benchmarked yet.</p>
       <div class="facts">
         <div><h3>MIT licensed</h3><p>Use it, fork it, ship it.</p></div>
-        <div><h3>No telemetry</h3><p>No network code. <code>/lean:stats</code> only reads transcripts already on your disk.</p></div>
-        <div><h3>Zero dependencies</h3><p>No background process. lean's own files live in <code>~/.claude/lean/</code> and can be deleted any time.</p></div>
+        <div><h3>No telemetry</h3><p>No network code.</p></div>
+        <div><h3>Zero dependencies</h3><p>No background process.</p></div>
       </div>
     </div>
   </section>

@@ -6,8 +6,21 @@ import { execFileSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { has } from "./features.mjs";
 import { repoMap } from "./repo-map.mjs";
+import { CURSOR_ROOTS } from "./paths.mjs";
 
 export const RULE = ".cursor/rules/lean-repo-map.mdc";
+
+// Remember the workspace folders, newest first: the Cursor app starts the MCP server in "/" and its
+// roots/list may come back empty, so the server falls back to this list.
+function recordRoots(roots) {
+  let old = [];
+  try {
+    old = JSON.parse(readFileSync(CURSOR_ROOTS, "utf8"));
+  } catch {}
+  const next = [...new Set([...roots, ...(Array.isArray(old) ? old : [])])].slice(0, 20);
+  mkdirSync(dirname(CURSOR_ROOTS), { recursive: true });
+  writeFileSync(CURSOR_ROOTS, JSON.stringify(next));
+}
 
 const git = (root, ...args) => execFileSync("git", args, { cwd: root, stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
 
@@ -54,6 +67,9 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     input = JSON.parse(readFileSync(0, "utf8"));
   } catch {}
   const roots = new Set([...(input.workspace_roots ?? []), process.env.CURSOR_PROJECT_DIR].filter(Boolean));
+  try {
+    if (roots.size) recordRoots([...roots]);
+  } catch {}
   if (has("repomap")) for (const root of roots) writeRule(root);
   console.log("{}");
 }
