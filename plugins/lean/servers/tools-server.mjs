@@ -262,7 +262,7 @@ const TOOLS = [
         name: "UsageStats",
         core: true,
         description:
-          "Summarize what lean saved in this project: tokens kept out of context and round trips saved, per tool. Use when asked about lean's savings, token usage or what lean did.",
+          "Summarize what lean saved in this project: tokens kept out of context, round trips saved, and (from local Cursor transcripts) the share of model calls those trips skipped. Use when asked about lean's savings, token usage, time saved, or what lean did.",
         annotations: READ_ONLY,
         inputSchema: {
           type: "object",

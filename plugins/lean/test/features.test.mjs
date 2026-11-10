@@ -267,10 +267,33 @@ test("cursor host: UsageStats sums tokens kept out and round trips per tool, for
   assert.match(t, /\| BatchEdit \| 1 \| – \| 3 \|/);
   assert.doesNotMatch(t, /MultiRead/, "other projects are left out");
   assert.match(t, /Total: 3 calls, ≈ 11,000 tokens kept out of context, 3 round trips saved\./);
+  assert.match(t, /No prompts in this project's Cursor transcripts for this window/);
   assert.match(t, /Cursor dashboard/);
   const all = call({ allProjects: true });
   assert.match(all, /\| MultiRead \| 1 \| – \| 2 \|/);
   assert.match(all, /\| other \| 1 \| – \| 2 \|/);
+});
+
+test("cursor host: UsageStats reports skipped calls as a share of the model calls in local transcripts", () => {
+  const home = mkdtempSync(join(tmpdir(), "lean-home-"));
+  const root = "/work/app";
+  const dir = join(home, ".cursor", "projects", "work-app", "agent-transcripts", "s");
+  mkdirSync(dir, { recursive: true });
+  const recent = new Date().toISOString();
+  const old = new Date(Date.now() - 48 * 3600_000).toISOString();
+  const user = (stamp, body) => JSON.stringify({ role: "user", message: { content: [{ type: "text", text: `<timestamp>${stamp}</timestamp>\n${body}` }] } });
+  const assistant = (body) => JSON.stringify({ role: "assistant", message: { content: [{ type: "text", text: body }] } });
+  writeFileSync(join(dir, "s.jsonl"), [user(old, "old"), assistant("old"), user(recent, "now"), assistant("a"), assistant("b")].join("\n") + "\n");
+  const log = join(home, "saved.jsonl");
+  writeFileSync(log, JSON.stringify({ t: Date.now(), tool: "BatchEdit", sent: 40, baseline: 40, callsSaved: 3, root, host: "cursor" }) + "\n");
+  const t = text(mcp("", [["tools/call", { name: "UsageStats", arguments: {} }]], { LEAN_HOST: "cursor", LEAN_SAVINGS_LOG: log, CLAUDE_PROJECT_DIR: root, HOME: home })[0]);
+  assert.match(t, /Speedup: skipped 3 of 5 model calls \(60%\) across 1 prompt\(s\)\./);
+  assert.match(t, /minute resolution/);
+  // The savings log names the parent folder when the server was started above the workspace.
+  const parentLog = join(home, "parent.jsonl");
+  writeFileSync(parentLog, JSON.stringify({ t: Date.now(), tool: "BatchEdit", sent: 40, baseline: 40, callsSaved: 3, root: "/work", host: "cursor" }) + "\n");
+  const parent = text(mcp("", [["tools/call", { name: "UsageStats", arguments: {} }]], { LEAN_HOST: "cursor", LEAN_SAVINGS_LOG: parentLog, CLAUDE_PROJECT_DIR: "/work", HOME: home })[0]);
+  assert.match(parent, /Speedup: skipped 3 of 5 model calls \(60%\) across 1 prompt\(s\) in the Cursor projects under this folder\./);
 });
 
 // ---------- contextguard ----------

@@ -251,8 +251,108 @@ export function usageStats(root, savingsLog, { sinceHours = 24, maxTools = Infin
   return out.join("\n");
 }
 
-// Cursor gives plugins no transcripts or token counts, so this reports from lean's own savings log:
-// per tool, the output kept out of context and the round trips saved.
+// Cursor's project folder is the path with punctuation as "-" and no leading dash.
+function cursorSlug(root) {
+  return root.replace(/[^a-zA-Z0-9]/g, "-").replace(/^-+/, "");
+}
+
+// The matching Cursor project, or, when the log's folder has none (the server was started above the
+// workspace), every project directory nested under that folder.
+function transcriptDirs(root) {
+  const slug = cursorSlug(root);
+  const base = join(homedir(), ".cursor", "projects");
+  const exact = join(base, slug, "agent-transcripts");
+  try {
+    statSync(exact);
+    return { dirs: [exact], nested: false };
+  } catch {}
+  let names;
+  try {
+    names = readdirSync(base, { withFileTypes: true });
+  } catch {
+    return { dirs: [], nested: false };
+  }
+  const dirs = names.filter((n) => n.isDirectory() && n.name.startsWith(`${slug}-`)).map((n) => join(base, n.name, "agent-transcripts"));
+  return { dirs, nested: dirs.length > 0 };
+}
+
+function filesSince(dir, since) {
+  const files = [];
+  const walk = (d) => {
+    for (const n of readdirSync(d, { withFileTypes: true })) {
+      const p = join(d, n.name);
+      if (n.isDirectory()) walk(p);
+      else if (n.name.endsWith(".jsonl") && statSync(p).mtimeMs >= since) files.push(p);
+    }
+  };
+  try {
+    walk(dir);
+  } catch {
+    return null;
+  }
+  return files;
+}
+
+// Model calls that ran in this project's Cursor transcripts. Prompt timestamps are minute resolution,
+// so they can't price a call; they can count the calls, which turns skipped round trips into a share.
+function cursorCalls(root, since) {
+  const { dirs, nested } = transcriptDirs(root);
+  if (!dirs.length) return null;
+  const files = [];
+  let found = false;
+  for (const dir of dirs) {
+    const batch = filesSince(dir, since);
+    if (!batch) continue;
+    found = true;
+    files.push(...batch);
+  }
+  if (!found) return null;
+  let calls = 0;
+  let prompts = 0;
+  for (const file of files) {
+    let open = false;
+    for (const line of readFileSync(file, "utf8").split("\n")) {
+      if (!line.includes('"user"') && !line.includes('"assistant"')) continue;
+      let e;
+      try {
+        e = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (e.role !== "user") {
+        if (open && e.role === "assistant") calls++;
+        continue;
+      }
+      const content = e.message?.content;
+      const text = typeof content === "string" ? content : content?.[0]?.text ?? "";
+      const stamp = /<timestamp>([^<]+)<\/timestamp>/.exec(text);
+      const t = stamp ? Date.parse(stamp[1]) : NaN;
+      if (!Number.isFinite(t)) continue;
+      open = t >= since;
+      if (open) prompts++;
+    }
+  }
+  return { calls, prompts, nested };
+}
+
+function callsObserved(roots, since) {
+  let calls = 0;
+  let prompts = 0;
+  let nested = false;
+  let found = false;
+  for (const root of roots) {
+    const a = cursorCalls(root, since);
+    if (!a) continue;
+    found = true;
+    nested = nested || a.nested;
+    calls += a.calls;
+    prompts += a.prompts;
+  }
+  return found ? { calls, prompts, nested } : null;
+}
+
+// Cursor gives plugins no token counts. Savings come from lean's own log; the call ratio comes from
+// transcripts Cursor already keeps on disk (~/.cursor/projects). There is no wall-clock figure.
 export function savingsStats(root, savingsLog, { sinceHours = 24, allProjects = false } = {}) {
   const since = Date.now() - sinceHours * 3600_000;
   const rows = readLog(savingsLog, since).filter((r) => r.root && r.tool !== "contextguard" && (allProjects || r.root === root));
@@ -282,11 +382,20 @@ export function savingsStats(root, savingsLog, { sinceHours = 24, allProjects = 
     out.push("", "What lean saved (estimates; ≈ tokens = chars / 4)", ...table("tool", byTool));
     if (allProjects) out.push("", ...table("project", sum((r) => basename(r.root) || r.root)));
     out.push(`Total: ${total.uses} calls, ≈ ${fmt(total.tokens)} tokens kept out of context, ${total.trips} round trips saved.`);
+    const observed = callsObserved([...new Set(rows.map((r) => r.root))], since);
+    if (total.trips > 0 && observed?.prompts > 0) {
+      const pct = Math.round((100 * total.trips) / (total.trips + observed.calls));
+      const scope = observed.nested ? " in the Cursor projects under this folder" : "";
+      out.push(`Speedup: skipped ${fmt(total.trips)} of ${fmt(total.trips + observed.calls)} model calls (${pct}%) across ${fmt(observed.prompts)} prompt(s)${scope}.`);
+    } else if (total.trips > 0) {
+      out.push("No prompts in this project's Cursor transcripts for this window, so the skipped calls aren't a share of the calls that ran.");
+    }
   }
   out.push(
     "",
     "Cursor doesn't share token counts or cost with plugins, so spend isn't shown here: see Usage in the Cursor dashboard. " +
       "Each kept-out token is also not re-read on later turns, and each saved round trip skips a full model call. " +
+      "Prompt timestamps are minute resolution, so the speedup counts model calls, not wall-clock time. " +
       "Not counted: the repo map's shorter exploration (measured in Claude Code: 18-28% cheaper, 25-28% faster)."
   );
   return out.join("\n");
