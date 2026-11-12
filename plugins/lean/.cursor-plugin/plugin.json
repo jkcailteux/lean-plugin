@@ -1,6 +1,6 @@
 {
   "name": "lean",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "description": "Token and turn savings for Cursor's agent: repo map rule, BatchEdit, batched reads and compact command output. No telemetry.",
   "author": { "name": "Jeff Cailteux" },
   "homepage": "https://jkcailteux.github.io/lean-plugin/",

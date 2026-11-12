@@ -13,7 +13,7 @@ import { outline, declarations } from "./outline.mjs";
 import { compact } from "../scripts/compact.mjs";
 import { usageStats, savingsStats } from "./usage.mjs";
 
-const VERSION = "0.1.0";
+const VERSION = "0.2.1";
 const ENV_ROOT = process.env.CLAUDE_PROJECT_DIR || process.env.CURSOR_PROJECT_DIR;
 // The Cursor app starts MCP servers in "/" with no project dir, so ROOT then comes from the client's roots.
 let ROOT = ENV_ROOT || process.cwd();
