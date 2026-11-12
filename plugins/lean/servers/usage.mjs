@@ -1,4 +1,5 @@
-// UsageStats: what this project's sessions cost, which tools filled the context, and what lean saved.
+// UsageStats: what this project's sessions cost, which tools filled the context, and what lean saved,
+// in Claude Code and in Cursor.
 // Everything comes from the transcripts Claude Code already writes
 // (~/.claude/projects/<project path with non-alphanumerics as "-">/*.jsonl) plus lean's savings log,
 // so nothing runs per tool call.
@@ -158,6 +159,11 @@ function guardSaving(row, s) {
   return Math.max(0, without - withIt);
 }
 
+// A Cursor prompt stamp is its minute cut short, so the prompt came 30s later on average.
+const STAMP_BIAS_MS = 30_000;
+// A run averaging more than this per model call sat waiting on something other than the model.
+const MAX_CALL_MS = 120_000;
+
 const fmt = (n) => Math.round(n).toLocaleString("en-US");
 const tok = (c) => fmt(c / 4);
 const usd = (d) => `$${d < 10 ? d.toFixed(2) : fmt(d)}`;
@@ -207,8 +213,13 @@ export function usageStats(root, savingsLog, { sinceHours = 24, maxTools = Infin
   };
   let warned = 0;
   let compacted = 0;
+  const cursorRows = [];
   for (const row of readLog(savingsLog, since)) {
-    if (row.host === "cursor" || (row.root && row.root !== root)) continue;
+    if (row.host === "cursor") {
+      if (row.root === root && row.tool !== "contextguard") cursorRows.push(row);
+      continue;
+    }
+    if (row.root && row.root !== root) continue;
     if (row.tool === "contextguard") {
       const s = sessions.find((x) => x.file === row.transcript);
       if (!s) continue;
@@ -232,8 +243,9 @@ export function usageStats(root, savingsLog, { sinceHours = 24, maxTools = Infin
   }
   if (warned) saved.get("context guard").uses = `${warned} warned, ${compacted} compacted`;
 
+  let total = null;
   if (saved.size) {
-    const total = [...saved.values()].reduce((n, a) => ({ cost: n.cost + a.cost, ms: n.ms + a.ms, tokens: n.tokens + a.tokens, trips: n.trips + a.trips }), { cost: 0, ms: 0, tokens: 0, trips: 0 });
+    total = [...saved.values()].reduce((n, a) => ({ cost: n.cost + a.cost, ms: n.ms + a.ms, tokens: n.tokens + a.tokens, trips: n.trips + a.trips }), { cost: 0, ms: 0, tokens: 0, trips: 0 });
     out.push(
       "",
       "What lean saved (estimates)",
@@ -242,6 +254,16 @@ export function usageStats(root, savingsLog, { sinceHours = 24, maxTools = Infin
       ...[...saved].map(([k, a]) => `| ${k} | ${a.uses} | ${a.tokens ? fmt(a.tokens) : "–"} | ${a.trips || "–"} | ${usd(a.cost)} | ${a.ms ? dur(a.ms) : "–"} |`),
       `Total: ≈ ${usd(total.cost)}${spent ? ` (${Math.round((100 * total.cost) / (spent + total.cost))}% of what these sessions would have cost)` : ""}, ≈ ${dur(total.ms)} of model time, ${fmt(total.tokens)} tokens and ${total.trips} round trips.`
     );
+  }
+  // The same project opened in Cursor: lean's log has those calls too, tagged by host.
+  if (cursorRows.length) {
+    const cursor = cursorSaved(cursorRows, since);
+    out.push("", "Cursor, same project (estimates from lean's log; Cursor shares no token counts or cost)", ...cursor.lines);
+    if (total) {
+      out.push(
+        `Claude Code + Cursor: ≈ ${fmt(total.tokens + cursor.total.tokens)} tokens kept out of context, ${total.trips + cursor.total.trips} round trips and ≈ ${dur(total.ms + cursor.total.ms)} saved.`
+      );
+    }
   }
   out.push(
     "",
@@ -320,9 +342,10 @@ function stampTime(stamp) {
   return Date.parse(`${m[1]} UTC`) - offset * 60_000;
 }
 
-// Model calls that ran in the Cursor transcripts of these project folders. Prompt timestamps are minute
-// resolution, so they can't price a call; they can count the calls, which turns skipped round trips into
-// a share. A transcript folder reached from two logged folders (a parent and its child) counts once.
+// Model calls that ran in the Cursor transcripts of these project folders, and how long one took.
+// Cursor stamps only the prompt, to the minute, so a call's time is a run's length (last prompt to the
+// transcript's last write) over its calls: the median run, so one left waiting on the user doesn't count.
+// A transcript folder reached from two logged folders (a parent and its child) counts once.
 function callsObserved(roots, since) {
   const dirs = new Set();
   let nested = false;
@@ -342,8 +365,10 @@ function callsObserved(roots, since) {
   if (!found) return null;
   let calls = 0;
   let prompts = 0;
+  const perCall = [];
   for (const file of files) {
     let open = false;
+    let last = null;
     for (const line of readFileSync(file, "utf8").split("\n")) {
       if (!line.includes('"user"') && !line.includes('"assistant"')) continue;
       let e;
@@ -353,7 +378,10 @@ function callsObserved(roots, since) {
         continue;
       }
       if (e.role !== "user") {
-        if (open && e.role === "assistant") calls++;
+        if (open && e.role === "assistant") {
+          calls++;
+          last.calls++;
+        }
         continue;
       }
       const content = e.message?.content;
@@ -362,17 +390,24 @@ function callsObserved(roots, since) {
       const t = stamp ? stampTime(stamp[1]) : NaN;
       if (!Number.isFinite(t)) continue;
       open = t >= since;
+      last = open ? { t, calls: 0 } : null;
       if (open) prompts++;
     }
+    if (!last?.calls) continue;
+    try {
+      const ms = (statSync(file).mtimeMs - last.t - STAMP_BIAS_MS) / last.calls;
+      if (ms > 0 && ms < MAX_CALL_MS) perCall.push(ms);
+    } catch {}
   }
-  return { calls, prompts, nested };
+  perCall.sort((a, b) => a - b);
+  return { calls, prompts, nested, callMs: perCall.length ? perCall[perCall.length >> 1] : 0 };
 }
 
-// Cursor gives plugins no token counts. Savings come from lean's own log; the call ratio comes from
-// transcripts Cursor already keeps on disk (~/.cursor/projects). There is no wall-clock figure.
-export function savingsStats(root, savingsLog, { sinceHours = 24, allProjects = false } = {}) {
-  const since = Date.now() - sinceHours * 3600_000;
-  const rows = readLog(savingsLog, since).filter((r) => r.root && r.tool !== "contextguard" && (allProjects || r.root === root));
+// lean's Cursor savings for these log rows: a table per tool (and per project), the total, and the
+// skipped calls as a share of the calls that ran and as time.
+function cursorSaved(rows, since, { allProjects = false } = {}) {
+  const observed = callsObserved([...new Set(rows.map((r) => r.root))], since);
+  const callMs = observed?.callMs ?? 0;
   const sum = (key) => {
     const m = new Map();
     for (const r of rows) {
@@ -385,34 +420,66 @@ export function savingsStats(root, savingsLog, { sinceHours = 24, allProjects = 
     return [...m].sort((a, b) => b[1].tokens - a[1].tokens || b[1].trips - a[1].trips);
   };
   const table = (label, list) => [
-    `| ${label} | uses | ≈ tokens kept out | round trips saved |`,
-    "|---|---:|---:|---:|",
-    ...list.map(([k, a]) => `| ${k} | ${a.uses} | ${a.tokens ? fmt(a.tokens) : "–"} | ${a.trips || "–"} |`),
+    `| ${label} | uses | ≈ tokens kept out | round trips saved | ≈ time saved |`,
+    "|---|---:|---:|---:|---:|",
+    ...list.map(([k, a]) => `| ${k} | ${a.uses} | ${a.tokens ? fmt(a.tokens) : "–"} | ${a.trips || "–"} | ${a.trips && callMs ? dur(a.trips * callMs) : "–"} |`),
   ];
+  const byTool = sum((r) => r.tool);
+  const total = byTool.reduce((n, [, a]) => ({ uses: n.uses + a.uses, tokens: n.tokens + a.tokens, trips: n.trips + a.trips }), { uses: 0, tokens: 0, trips: 0 });
+  total.ms = total.trips * callMs;
+  const lines = table("tool", byTool);
+  if (allProjects) lines.push("", ...table("project", sum((r) => basename(r.root) || r.root)));
+  lines.push(`Total: ${total.uses} calls, ≈ ${fmt(total.tokens)} tokens kept out of context, ${total.trips} round trips saved.`);
+  if (total.trips > 0 && observed?.prompts > 0) {
+    const pct = Math.round((100 * total.trips) / (total.trips + observed.calls));
+    const scope = observed.nested ? " in the Cursor projects under this folder" : "";
+    const time = callMs ? ` ≈ ${dur(total.ms)} saved, at ≈ ${dur(callMs)} per model call.` : "";
+    lines.push(`Speedup: skipped ${fmt(total.trips)} of ${fmt(total.trips + observed.calls)} model calls (${pct}%) across ${fmt(observed.prompts)} prompt(s)${scope}.${time}`);
+  } else if (total.trips > 0) {
+    lines.push("No prompts in this project's Cursor transcripts for this window, so the skipped calls aren't a share of the calls that ran and have no time estimate.");
+  }
+  return { lines, total };
+}
+
+// What lean saved in Claude Code for the same log rows, in one line: the full report is /lean:stats there.
+function claudeLine(rows, since, allProjects) {
+  if (!rows.length) return [];
+  let tokens = 0;
+  let trips = 0;
+  let ms = 0;
+  const turnMs = new Map();
+  for (const r of rows) {
+    if (!turnMs.has(r.root)) turnMs.set(r.root, scan(r.root, since).turnMs);
+    tokens += Math.max(0, (r.baseline - r.sent) / 4);
+    trips += r.callsSaved ?? 0;
+    ms += (r.callsSaved ?? 0) * turnMs.get(r.root);
+  }
+  const time = ms ? ` (≈ ${dur(ms)})` : "";
+  return [
+    "",
+    `Claude Code, ${allProjects ? "all projects" : "same project"}: ${rows.length} lean calls, ≈ ${fmt(tokens)} tokens kept out of context, ${trips} round trips saved${time}. Cost and per-tool detail: /lean:stats in Claude Code.`,
+  ];
+}
+
+// Cursor gives plugins no token counts. Savings come from lean's own log; the call share and the time
+// per call come from transcripts Cursor already keeps on disk (~/.cursor/projects).
+export function savingsStats(root, savingsLog, { sinceHours = 24, allProjects = false } = {}) {
+  const since = Date.now() - sinceHours * 3600_000;
+  const all = readLog(savingsLog, since).filter((r) => r.root && r.tool !== "contextguard" && (allProjects || r.root === root));
+  const rows = all.filter((r) => r.host === "cursor");
   const where = allProjects ? "all projects" : basename(root) || root;
   const out = [`Last ${sinceHours}h · lean tool calls in ${where}`];
   if (!rows.length) {
-    out.push(`No lean tool calls logged for ${allProjects ? "any project" : root} in the last ${sinceHours}h.`);
+    out.push(`No lean tool calls logged in Cursor for ${allProjects ? "any project" : root} in the last ${sinceHours}h.`);
   } else {
-    const byTool = sum((r) => r.tool);
-    const total = byTool.reduce((n, [, a]) => ({ uses: n.uses + a.uses, tokens: n.tokens + a.tokens, trips: n.trips + a.trips }), { uses: 0, tokens: 0, trips: 0 });
-    out.push("", "What lean saved (estimates; ≈ tokens = chars / 4)", ...table("tool", byTool));
-    if (allProjects) out.push("", ...table("project", sum((r) => basename(r.root) || r.root)));
-    out.push(`Total: ${total.uses} calls, ≈ ${fmt(total.tokens)} tokens kept out of context, ${total.trips} round trips saved.`);
-    const observed = callsObserved([...new Set(rows.map((r) => r.root))], since);
-    if (total.trips > 0 && observed?.prompts > 0) {
-      const pct = Math.round((100 * total.trips) / (total.trips + observed.calls));
-      const scope = observed.nested ? " in the Cursor projects under this folder" : "";
-      out.push(`Speedup: skipped ${fmt(total.trips)} of ${fmt(total.trips + observed.calls)} model calls (${pct}%) across ${fmt(observed.prompts)} prompt(s)${scope}.`);
-    } else if (total.trips > 0) {
-      out.push("No prompts in this project's Cursor transcripts for this window, so the skipped calls aren't a share of the calls that ran.");
-    }
+    out.push("", "What lean saved in Cursor (estimates; ≈ tokens = chars / 4)", ...cursorSaved(rows, since, { allProjects }).lines);
   }
+  out.push(...claudeLine(all.filter((r) => r.host !== "cursor"), since, allProjects));
   out.push(
     "",
     "Cursor doesn't share token counts or cost with plugins, so spend isn't shown here: see Usage in the Cursor dashboard. " +
       "Each kept-out token is also not re-read on later turns, and each saved round trip skips a full model call. " +
-      "Prompt timestamps are minute resolution, so the speedup counts model calls, not wall-clock time. " +
+      "Prompt timestamps are minute resolution, so time saved is an estimate: a run's length, from its last prompt to the transcript's last write, over its model calls. " +
       "Not counted: the repo map's shorter exploration (measured in Claude Code: 18-28% cheaper, 25-28% faster)."
   );
   return out.join("\n");

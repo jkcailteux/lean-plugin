@@ -284,7 +284,7 @@ const TOOLS = [
         name: "UsageStats",
         core: true,
         description:
-          "Summarize what lean saved in this project: tokens kept out of context, round trips saved, and (from local Cursor transcripts) the share of model calls those trips skipped. Use when asked about lean's savings, token usage, time saved, or what lean did.",
+          "Summarize what lean saved in this project: tokens kept out of context, round trips saved, and (from local Cursor transcripts) the share of model calls those trips skipped and the time that saved, plus a one-line total for Claude Code in the same project. Use when asked about lean's savings, token usage, time saved, or what lean did.",
         annotations: READ_ONLY,
         inputSchema: {
           type: "object",
@@ -299,7 +299,7 @@ const TOOLS = [
         name: "UsageStats",
         core: true,
         description:
-          "Summarize this project's recent sessions: cost at API prices, which tools produced the most output (a proxy for context/tokens), and estimated tokens, round trips, dollars and time lean saved.",
+          "Summarize this project's recent sessions: cost at API prices, which tools produced the most output (a proxy for context/tokens), and estimated tokens, round trips, dollars and time lean saved, with a section for the same project in Cursor.",
         annotations: READ_ONLY,
         inputSchema: {
           type: "object",
