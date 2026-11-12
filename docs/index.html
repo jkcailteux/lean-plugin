@@ -409,7 +409,7 @@ lean:RunCompact   708 tokens       <span class="g">$0.01</span></pre>
         <div><span class="n">3</span><h3>Turn on hooks in Cursor Settings</h3>
           <p class="note">Turn on <b>Include Third-Party Plugins, Skills, and Other Configs</b>. The repo map needs it.</p></div>
       </div>
-      <p class="note">In Cursor, ask the agent what lean saved. The context guard is Claude Code only, and the Cursor port isn't benchmarked yet.</p>
+      <p class="note">In Cursor, ask the agent what lean saved. Skipped round trips are a share of the model calls in Cursor's transcripts; the time saved is an estimate, since Cursor stores only each prompt's time, to the minute. In Claude Code, <code>/lean:stats</code> shows both: what lean saved there and in Cursor for the same project. The context guard is Claude Code only, and the Cursor port isn't benchmarked yet.</p>
       <div class="facts">
         <div><h3>MIT licensed</h3><p>Use it, fork it, ship it.</p></div>
         <div><h3>No telemetry</h3><p>No network code.</p></div>

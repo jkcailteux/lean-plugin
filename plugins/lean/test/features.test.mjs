@@ -5,7 +5,7 @@
 import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, utimesSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, utimesSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -268,10 +268,81 @@ test("cursor host: UsageStats sums tokens kept out and round trips per tool, for
   assert.match(t, /\| BatchEdit \| 1 \| – \| 3 \|/);
   assert.doesNotMatch(t, /MultiRead/, "other projects are left out");
   assert.match(t, /Total: 3 calls, ≈ 11,000 tokens kept out of context, 3 round trips saved\./);
+  assert.match(t, /No prompts in this project's Cursor transcripts for this window/);
   assert.match(t, /Cursor dashboard/);
   const all = call({ allProjects: true });
   assert.match(all, /\| MultiRead \| 1 \| – \| 2 \|/);
   assert.match(all, /\| other \| 1 \| – \| 2 \|/);
+});
+
+// A fake home with Cursor transcripts, written the way Cursor writes them.
+const cursorSlug = (p) => p.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "");
+// Cursor's prompt stamp: "Sunday, Nov 1, 2026, 10:53 PM (UTC-5)".
+function cursorStamp(ms, offsetHours) {
+  const d = new Date(ms + offsetHours * 3600_000);
+  const day = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][d.getUTCDay()];
+  const month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getUTCMonth()];
+  const minutes = String(d.getUTCMinutes()).padStart(2, "0");
+  const zone = `UTC${offsetHours < 0 ? "-" : "+"}${Math.abs(offsetHours)}`;
+  return `${day}, ${month} ${d.getUTCDate()}, ${d.getUTCFullYear()}, ${d.getUTCHours() % 12 || 12}:${minutes} ${d.getUTCHours() < 12 ? "AM" : "PM"} (${zone})`;
+}
+const cursorUser = (stamp) => JSON.stringify({ role: "user", message: { content: [{ type: "text", text: `<timestamp>${stamp}</timestamp>\n<user_query>\nq\n</user_query>` }] } });
+const cursorAssistant = () => JSON.stringify({ role: "assistant", message: { content: [{ type: "tool_use", name: "Read", input: {} }] } });
+function cursorTranscript(home, project, lines, endedAt) {
+  const dir = join(home, ".cursor", "projects", project, "agent-transcripts", "s");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "s.jsonl"), lines.join("\n") + "\n");
+  if (endedAt) utimesSync(join(dir, "s.jsonl"), endedAt / 1000, endedAt / 1000);
+}
+function cursorStats(home, rows, root, args = {}, more = []) {
+  const log = join(mkdtempSync(join(tmpdir(), "lean-log-")), "saved.jsonl");
+  const logged = [...rows.map((r) => ({ t: Date.now(), tool: "BatchEdit", sent: 40, baseline: 40, callsSaved: 3, root: r, host: "cursor" })), ...more];
+  writeFileSync(log, logged.map((r) => JSON.stringify(r)).join("\n") + "\n");
+  return text(mcp("", [["tools/call", { name: "UsageStats", arguments: args }]], { LEAN_HOST: "cursor", LEAN_SAVINGS_LOG: log, CLAUDE_PROJECT_DIR: root, HOME: home })[0]);
+}
+
+test("cursor host: UsageStats reports skipped calls as a share of the model calls in local transcripts", () => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "lean-home-")));
+  const root = join(home, "work", "app");
+  mkdirSync(root, { recursive: true });
+  // The stamps name a zone that is not this machine's: a prompt 30h old must stay outside the 24h window.
+  const old = cursorStamp(Date.now() - 30 * 3600_000, 14);
+  const asked = Date.now() - 2 * 3600_000;
+  const recent = cursorStamp(asked, -11);
+  // The run's last write came 50s after the minute on the stamp: 30s for the cut-off seconds, then 2 calls of 10s.
+  const ended = asked - (asked % 60_000) + 50_000;
+  cursorTranscript(home, cursorSlug(root), [cursorUser(old), cursorAssistant(), cursorUser(recent), cursorAssistant(), cursorAssistant(), JSON.stringify({ type: "turn_end", status: "completed" })], ended);
+  // The same folder also had a Claude Code session: its calls are one line, not rows in the Cursor table.
+  const claude = { t: Date.now(), tool: "RunCompact", sent: 400, baseline: 8400, callsSaved: 1, root, host: "claude" };
+  const t = cursorStats(home, [root], root, {}, [claude]);
+  assert.match(t, /\| BatchEdit \| 1 \| – \| 3 \| 30s \|/);
+  assert.match(t, /Speedup: skipped 3 of 5 model calls \(60%\) across 1 prompt\(s\)\. ≈ 30s saved, at ≈ 10s per model call\./);
+  assert.match(t, /minute resolution/);
+  assert.doesNotMatch(t, /\| RunCompact/);
+  assert.match(t, /Claude Code, same project: 1 lean calls, ≈ 2,000 tokens kept out of context, 1 round trips saved\. Cost and per-tool detail: \/lean:stats/);
+  // The savings log names the parent folder when the server was started above the workspace.
+  const parent = cursorStats(home, [join(home, "work")], join(home, "work"));
+  assert.match(parent, /Speedup: skipped 3 of 5 model calls \(60%\) across 1 prompt\(s\) in the Cursor projects under this folder\./);
+});
+
+test("cursor host: UsageStats finds the Cursor project for odd folder names, skips sibling folders, and counts a transcript once", () => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "lean-home-")));
+  const now = cursorStamp(Date.now() - 3600_000, 0);
+  const turn = (calls) => [cursorUser(now), ...Array.from({ length: calls }, cursorAssistant)];
+  // Cursor writes a run of punctuation ("/-", "__") as one dash.
+  const odd = join(home, "tmp", "-Users-x", "proj");
+  mkdirSync(odd, { recursive: true });
+  cursorTranscript(home, `${cursorSlug(home)}-tmp-Users-x-proj`, turn(1));
+  assert.match(cursorStats(home, [odd], odd), /Speedup: skipped 3 of 4 model calls \(75%\) across 1 prompt\(s\)\./);
+  // /work-b is beside /work, not under it, though its Cursor folder name starts the same way.
+  const work = join(home, "work");
+  mkdirSync(join(work, "app"), { recursive: true });
+  mkdirSync(join(home, "work-b"));
+  cursorTranscript(home, cursorSlug(join(work, "app")), turn(2));
+  cursorTranscript(home, cursorSlug(join(home, "work-b")), turn(7));
+  assert.match(cursorStats(home, [work], work), /Speedup: skipped 3 of 5 model calls \(60%\) across 1 prompt\(s\) in the Cursor projects under this folder\./);
+  // The parent and the child both logged savings: the child's transcript is read once.
+  assert.match(cursorStats(home, [work, join(work, "app")], work, { allProjects: true }), /Speedup: skipped 6 of 8 model calls \(75%\) across 1 prompt\(s\)/);
 });
 
 // ---------- contextguard ----------
@@ -449,6 +520,9 @@ test("UsageStats: prices turns and credits lean tool calls and a guard-prompted 
   assert.match(t, /\| context guard \| 1 warned, 1 compacted \| – \| – \| \$0\.64 \| – \|/);
   assert.doesNotMatch(t, /RunCompact/, "savings from other projects are not counted here");
   assert.match(t, /Total: ≈ \$0\.74 \(20% of what these sessions would have cost\), ≈ 10s of model time/);
+  // The Cursor call in this project gets its own section, then a line for both hosts together.
+  assert.match(t, /Cursor, same project[^\n]*\n[^\n]*\n[^\n]*\n\| MultiRead \| 1 \| 1,000 \| 2 \| – \|/);
+  assert.match(t, /Claude Code \+ Cursor: ≈ 2,000 tokens kept out of context, 4 round trips and ≈ 10s saved\./);
 });
 
 // ---------- cursor ----------
