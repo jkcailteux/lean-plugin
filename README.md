@@ -131,7 +131,7 @@ Default hooks run once per session (SessionStart) and once per prompt (UserPromp
 node --test plugins/lean/test/*.test.mjs
 ```
 
-39 mechanism tests: every hook and tool runs as a real subprocess with the JSON Claude Code (or Cursor) sends, against a generated fixture repo. `regression.test.mjs` covers what broke on a large Gradle/Kotlin repo, tested for any stack: stack traces that open in framework code, `./gradlew` and `./mvnw`, Java/Kotlin/Swift/C# symbols, the oversized-repo map, and a missing project folder.
+40 mechanism tests: every hook and tool runs as a real subprocess with the JSON Claude Code (or Cursor) sends, against a generated fixture repo. `regression.test.mjs` covers what broke on a large Gradle/Kotlin repo, tested for any stack: stack traces that open in framework code, `./gradlew` and `./mvnw`, Java/Kotlin/Swift/C# symbols, the oversized-repo map, and a missing project folder.
 
 ## Benchmark
 

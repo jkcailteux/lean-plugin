@@ -251,13 +251,29 @@ export function usageStats(root, savingsLog, { sinceHours = 24, maxTools = Infin
   return out.join("\n");
 }
 
-// Cursor's project folder is the path with punctuation as "-" and no leading dash.
-function cursorSlug(root) {
-  return root.replace(/[^a-zA-Z0-9]/g, "-").replace(/^-+/, "");
+// Cursor's project folder is the path with each run of punctuation as one "-", and no dash at either end.
+function cursorSlug(path) {
+  return path.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+// True when a real folder under dir has the slug `rest`. A slug alone can't tell /work/app from /work-app.
+function nestedUnder(dir, rest) {
+  let names;
+  try {
+    names = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return false;
+  }
+  return names.some((n) => {
+    if (!n.isDirectory()) return false;
+    const slug = cursorSlug(n.name);
+    if (!slug) return false;
+    return rest === slug || (rest.startsWith(`${slug}-`) && nestedUnder(join(dir, n.name), rest.slice(slug.length + 1)));
+  });
 }
 
 // The matching Cursor project, or, when the log's folder has none (the server was started above the
-// workspace), every project directory nested under that folder.
+// workspace), every Cursor project whose folder is nested under that folder.
 function transcriptDirs(root) {
   const slug = cursorSlug(root);
   const base = join(homedir(), ".cursor", "projects");
@@ -272,7 +288,9 @@ function transcriptDirs(root) {
   } catch {
     return { dirs: [], nested: false };
   }
-  const dirs = names.filter((n) => n.isDirectory() && n.name.startsWith(`${slug}-`)).map((n) => join(base, n.name, "agent-transcripts"));
+  const dirs = names
+    .filter((n) => n.isDirectory() && n.name.startsWith(`${slug}-`) && nestedUnder(root, n.name.slice(slug.length + 1)))
+    .map((n) => join(base, n.name, "agent-transcripts"));
   return { dirs, nested: dirs.length > 0 };
 }
 
@@ -293,11 +311,26 @@ function filesSince(dir, since) {
   return files;
 }
 
-// Model calls that ran in this project's Cursor transcripts. Prompt timestamps are minute resolution,
-// so they can't price a call; they can count the calls, which turns skipped round trips into a share.
-function cursorCalls(root, since) {
-  const { dirs, nested } = transcriptDirs(root);
-  if (!dirs.length) return null;
+// Cursor stamps prompts like "Sunday, Nov 1, 2026, 10:53 PM (UTC-5)". Date.parse ignores the bracket and
+// reads the time as this machine's zone, so apply the offset here.
+function stampTime(stamp) {
+  const m = /^(.*?)\s*\(UTC(?:([+-])(\d{1,2})(?::(\d{2}))?)?\)\s*$/.exec(stamp);
+  if (!m) return Date.parse(stamp);
+  const offset = (m[2] === "-" ? -1 : 1) * ((+m[3] || 0) * 60 + (+m[4] || 0));
+  return Date.parse(`${m[1]} UTC`) - offset * 60_000;
+}
+
+// Model calls that ran in the Cursor transcripts of these project folders. Prompt timestamps are minute
+// resolution, so they can't price a call; they can count the calls, which turns skipped round trips into
+// a share. A transcript folder reached from two logged folders (a parent and its child) counts once.
+function callsObserved(roots, since) {
+  const dirs = new Set();
+  let nested = false;
+  for (const root of roots) {
+    const found = transcriptDirs(root);
+    nested = nested || found.nested;
+    for (const dir of found.dirs) dirs.add(dir);
+  }
   const files = [];
   let found = false;
   for (const dir of dirs) {
@@ -326,29 +359,13 @@ function cursorCalls(root, since) {
       const content = e.message?.content;
       const text = typeof content === "string" ? content : content?.[0]?.text ?? "";
       const stamp = /<timestamp>([^<]+)<\/timestamp>/.exec(text);
-      const t = stamp ? Date.parse(stamp[1]) : NaN;
+      const t = stamp ? stampTime(stamp[1]) : NaN;
       if (!Number.isFinite(t)) continue;
       open = t >= since;
       if (open) prompts++;
     }
   }
   return { calls, prompts, nested };
-}
-
-function callsObserved(roots, since) {
-  let calls = 0;
-  let prompts = 0;
-  let nested = false;
-  let found = false;
-  for (const root of roots) {
-    const a = cursorCalls(root, since);
-    if (!a) continue;
-    found = true;
-    nested = nested || a.nested;
-    calls += a.calls;
-    prompts += a.prompts;
-  }
-  return found ? { calls, prompts, nested } : null;
 }
 
 // Cursor gives plugins no token counts. Savings come from lean's own log; the call ratio comes from

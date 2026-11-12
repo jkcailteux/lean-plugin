@@ -5,7 +5,7 @@
 import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, utimesSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, utimesSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -275,26 +275,64 @@ test("cursor host: UsageStats sums tokens kept out and round trips per tool, for
   assert.match(all, /\| other \| 1 \| – \| 2 \|/);
 });
 
-test("cursor host: UsageStats reports skipped calls as a share of the model calls in local transcripts", () => {
-  const home = mkdtempSync(join(tmpdir(), "lean-home-"));
-  const root = "/work/app";
-  const dir = join(home, ".cursor", "projects", "work-app", "agent-transcripts", "s");
+// A fake home with Cursor transcripts, written the way Cursor writes them.
+const cursorSlug = (p) => p.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "");
+// Cursor's prompt stamp: "Sunday, Nov 1, 2026, 10:53 PM (UTC-5)".
+function cursorStamp(ms, offsetHours) {
+  const d = new Date(ms + offsetHours * 3600_000);
+  const day = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][d.getUTCDay()];
+  const month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getUTCMonth()];
+  const minutes = String(d.getUTCMinutes()).padStart(2, "0");
+  const zone = `UTC${offsetHours < 0 ? "-" : "+"}${Math.abs(offsetHours)}`;
+  return `${day}, ${month} ${d.getUTCDate()}, ${d.getUTCFullYear()}, ${d.getUTCHours() % 12 || 12}:${minutes} ${d.getUTCHours() < 12 ? "AM" : "PM"} (${zone})`;
+}
+const cursorUser = (stamp) => JSON.stringify({ role: "user", message: { content: [{ type: "text", text: `<timestamp>${stamp}</timestamp>\n<user_query>\nq\n</user_query>` }] } });
+const cursorAssistant = () => JSON.stringify({ role: "assistant", message: { content: [{ type: "tool_use", name: "Read", input: {} }] } });
+function cursorTranscript(home, project, lines) {
+  const dir = join(home, ".cursor", "projects", project, "agent-transcripts", "s");
   mkdirSync(dir, { recursive: true });
-  const recent = new Date().toISOString();
-  const old = new Date(Date.now() - 48 * 3600_000).toISOString();
-  const user = (stamp, body) => JSON.stringify({ role: "user", message: { content: [{ type: "text", text: `<timestamp>${stamp}</timestamp>\n${body}` }] } });
-  const assistant = (body) => JSON.stringify({ role: "assistant", message: { content: [{ type: "text", text: body }] } });
-  writeFileSync(join(dir, "s.jsonl"), [user(old, "old"), assistant("old"), user(recent, "now"), assistant("a"), assistant("b")].join("\n") + "\n");
-  const log = join(home, "saved.jsonl");
-  writeFileSync(log, JSON.stringify({ t: Date.now(), tool: "BatchEdit", sent: 40, baseline: 40, callsSaved: 3, root, host: "cursor" }) + "\n");
-  const t = text(mcp("", [["tools/call", { name: "UsageStats", arguments: {} }]], { LEAN_HOST: "cursor", LEAN_SAVINGS_LOG: log, CLAUDE_PROJECT_DIR: root, HOME: home })[0]);
+  writeFileSync(join(dir, "s.jsonl"), lines.join("\n") + "\n");
+}
+function cursorStats(home, rows, root, args = {}) {
+  const log = join(mkdtempSync(join(tmpdir(), "lean-log-")), "saved.jsonl");
+  writeFileSync(log, rows.map((r) => JSON.stringify({ t: Date.now(), tool: "BatchEdit", sent: 40, baseline: 40, callsSaved: 3, root: r, host: "cursor" })).join("\n") + "\n");
+  return text(mcp("", [["tools/call", { name: "UsageStats", arguments: args }]], { LEAN_HOST: "cursor", LEAN_SAVINGS_LOG: log, CLAUDE_PROJECT_DIR: root, HOME: home })[0]);
+}
+
+test("cursor host: UsageStats reports skipped calls as a share of the model calls in local transcripts", () => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "lean-home-")));
+  const root = join(home, "work", "app");
+  mkdirSync(root, { recursive: true });
+  // The stamps name a zone that is not this machine's: a prompt 30h old must stay outside the 24h window.
+  const old = cursorStamp(Date.now() - 30 * 3600_000, 14);
+  const recent = cursorStamp(Date.now() - 2 * 3600_000, -11);
+  cursorTranscript(home, cursorSlug(root), [cursorUser(old), cursorAssistant(), cursorUser(recent), cursorAssistant(), cursorAssistant(), JSON.stringify({ type: "turn_end", status: "completed" })]);
+  const t = cursorStats(home, [root], root);
   assert.match(t, /Speedup: skipped 3 of 5 model calls \(60%\) across 1 prompt\(s\)\./);
   assert.match(t, /minute resolution/);
   // The savings log names the parent folder when the server was started above the workspace.
-  const parentLog = join(home, "parent.jsonl");
-  writeFileSync(parentLog, JSON.stringify({ t: Date.now(), tool: "BatchEdit", sent: 40, baseline: 40, callsSaved: 3, root: "/work", host: "cursor" }) + "\n");
-  const parent = text(mcp("", [["tools/call", { name: "UsageStats", arguments: {} }]], { LEAN_HOST: "cursor", LEAN_SAVINGS_LOG: parentLog, CLAUDE_PROJECT_DIR: "/work", HOME: home })[0]);
+  const parent = cursorStats(home, [join(home, "work")], join(home, "work"));
   assert.match(parent, /Speedup: skipped 3 of 5 model calls \(60%\) across 1 prompt\(s\) in the Cursor projects under this folder\./);
+});
+
+test("cursor host: UsageStats finds the Cursor project for odd folder names, skips sibling folders, and counts a transcript once", () => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "lean-home-")));
+  const now = cursorStamp(Date.now() - 3600_000, 0);
+  const turn = (calls) => [cursorUser(now), ...Array.from({ length: calls }, cursorAssistant)];
+  // Cursor writes a run of punctuation ("/-", "__") as one dash.
+  const odd = join(home, "tmp", "-Users-x", "proj");
+  mkdirSync(odd, { recursive: true });
+  cursorTranscript(home, `${cursorSlug(home)}-tmp-Users-x-proj`, turn(1));
+  assert.match(cursorStats(home, [odd], odd), /Speedup: skipped 3 of 4 model calls \(75%\) across 1 prompt\(s\)\./);
+  // /work-b is beside /work, not under it, though its Cursor folder name starts the same way.
+  const work = join(home, "work");
+  mkdirSync(join(work, "app"), { recursive: true });
+  mkdirSync(join(home, "work-b"));
+  cursorTranscript(home, cursorSlug(join(work, "app")), turn(2));
+  cursorTranscript(home, cursorSlug(join(home, "work-b")), turn(7));
+  assert.match(cursorStats(home, [work], work), /Speedup: skipped 3 of 5 model calls \(60%\) across 1 prompt\(s\) in the Cursor projects under this folder\./);
+  // The parent and the child both logged savings: the child's transcript is read once.
+  assert.match(cursorStats(home, [work, join(work, "app")], work, { allProjects: true }), /Speedup: skipped 6 of 8 model calls \(75%\) across 1 prompt\(s\)/);
 });
 
 // ---------- contextguard ----------
