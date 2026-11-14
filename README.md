@@ -14,7 +14,8 @@ Every feature in this plugin was benchmarked against vanilla Claude Code and kep
 | **MultiRead** | MCP tool: several files or line ranges in one call. | Removing it raised cost 10% and exploration turns 4x. |
 | **RunCompact** | MCP tool: runs tests/builds and returns only exit status, failures with context, and the tail. | A 320-test run: ~4k tokens down to ~300. |
 | **UsageStats** + `/lean:stats` | This project's recent cost at API prices, per-tool output sizes, and what lean saved in tokens, round trips, dollars and model time (tool calls and guard-prompted `/compact`s). | Visibility only; savings are estimates. |
-| **lean:scout** agent | Haiku read-only lookup agent returning `file:line` lists. | Not benchmarked (optional). |
+| **lean:scout** agent | Haiku read-only lookup agent returning `file:line` lists. Also answers one question about files you name, so a large file need not enter the main context. | Not benchmarked (optional): never called in the suite. |
+| **lean:writer** agent | Haiku boilerplate writer: takes a spec, reference files and a target path, writes the file and replies with one line, so the generated file never passes through the main model's output. The `writer` feature flag adds a SessionStart hint to delegate to it. | Generating a 160-test file: -70% cost ($0.35 against $1.16), -24% wall time, same pass rate; delegated 3/3 times. The 10 other tasks, including a small edit that should not delegate, spawned no subagent and stayed within noise. 11 tasks, 3 runs per arm. |
 
 Measured together against vanilla Claude Code (8 tasks, two independent runs, every task passing): **-18% to -28% cost, -43% to -47% turns, -25% to -28% wall time, -34% to -39% output tokens.**
 
@@ -37,7 +38,7 @@ Each passes its mechanism tests; none improved benchmarks or matched real usage.
 | Flag | What it does | Why it's off |
 |---|---|---|
 | `readcache` | Denies an identical re-read of an unchanged file | Claude Code almost never re-reads (0 of 615 reads in real history) |
-| `bigread` | Full read of a 300+ line code file returns an outline; adds `ReadSymbol` | Never triggered: with the repo map, Claude already reads line ranges |
+| `bigread` | Full read (or a bare `cat`/`less`/`more`) of a 300+ line code file returns an outline, pointing to a range read for edits or `lean:scout` for questions; adds `ReadSymbol` | With the repo map, Claude already searches and reads line ranges, so the guard never fired in the benchmark (0 times in 7 sessions on two large-file tasks) and the scout route was never offered; no measurable benefit |
 | `outline` | `Outline` tool | Claude never chose to call it |
 | `datapeek` | Read of a big JSON/CSV/log returns a summary | Claude queries data with jq/grep and never Reads it |
 | `junkfilter` | Grep excludes lockfiles, minified files and build output | Saves ~140 tokens per grep in a polluted repo; can hide real code in `build/` |
@@ -107,6 +108,7 @@ What you get in Cursor:
 | Repo map | Written to `.cursor/rules/lean-repo-map.mdc` as an always-applied rule on workspace open and session start, and added to `.git/info/exclude` so it never shows in `git status` |
 | Tool nudges | `cursor/rules/lean.mdc`, always applied |
 | scout agent | `cursor/agents/scout.md`, on Cursor's fast model, read-only |
+| writer agent | `cursor/agents/writer.md`, on Cursor's fast model |
 | UsageStats | Ask the agent what lean saved: tokens kept out of context and round trips saved, per tool, for this project (`allProjects` for all), from lean's local savings log. When this project's Cursor transcripts are on disk, the skipped round trips are also a share of the model calls that ran and an estimated time saved. Cursor stores only each prompt's time, to the minute, so a call's time is a run's length (last prompt to the transcript's last write) over its model calls. Lean calls made in Claude Code in the same project get a one-line total. No spend or dollars: Cursor doesn't share token counts, so see Usage in the Cursor dashboard. The repo map's effect isn't counted |
 | Context guard, `/lean:stats` | Not available: they read Claude Code transcripts. Run in Claude Code, `/lean:stats` also shows what lean saved in Cursor for the same project |
 
@@ -154,7 +156,7 @@ node bench/bench.mjs --arms base,lean --runs 3
 plugins/lean/
   .claude-plugin/plugin.json   manifest
   .cursor-plugin/plugin.json   Cursor manifest (points at cursor/)
-  cursor/                      Cursor MCP config, hooks, rules, scout agent
+  cursor/                      Cursor MCP config, hooks, rules, scout and writer agents
   .mcp.json                    MCP server (alwaysLoad)
   features.json                default features
   hooks/hooks.json             SessionStart (repo map) + UserPromptSubmit (context guard)
@@ -162,6 +164,7 @@ plugins/lean/
   servers/                     MCP server (zero-dependency JSON-RPC) + outline parser
   scripts/                     hooks, repo map, compactor, data peek, read cache
   agents/scout.md              Haiku lookup agent
+  agents/writer.md             Haiku boilerplate writer
   skills/stats/SKILL.md        /lean:stats
   test/                        mechanism tests
 bench/                         benchmark harness, tasks, fixture, analysis, results

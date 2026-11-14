@@ -103,6 +103,30 @@ test("bigread: a full read of a 300+ line code file returns its outline instead"
   assert.equal(pre("Read", { file_path: f }, "bigread"), null, "repeat goes through");
   assert.equal(pre("Read", { file_path: f, offset: 1950, limit: 20 }, "bigread"), null, "ranged reads untouched");
   assert.equal(pre("Read", { file_path: join(fx, "src/money.js") }, "bigread"), null, "small files untouched");
+  assert.match(d.permissionDecisionReason, /lean:scout/, "offers scout for questions");
+});
+
+test("bigread: a bare cat/less/more of a big code file gets the outline too, targeted commands do not", () => {
+  sid++;
+  const bash = (command, features = "bigread") => pre("Bash", { command }, features);
+  const d = bash("cat src/engine.js");
+  assert.equal(d.permissionDecision, "deny");
+  assert.match(d.permissionDecisionReason, /1967 lines/);
+  assert.match(d.permissionDecisionReason, /export function computeTotals/);
+  assert.equal(bash("cat src/engine.js"), null, "repeat goes through");
+  assert.equal(bash(`less "${join(fx, "src/engine.js")}"`).permissionDecision, "deny", "absolute and quoted paths");
+  for (const ok of ["cat src/money.js", "head -100 src/engine.js", "cat src/engine.js | grep rule001", "cat -n src/engine.js", "cat src/engine.js src/money.js", "cat data/orders.json", "cat src/missing.js"])
+    assert.equal(bash(ok), null, ok);
+  assert.equal(bash("more src/engine.js", ""), null, "off without the feature");
+});
+
+test("scout agent: both hosts take a question about named files", () => {
+  for (const f of ["agents/scout.md", "cursor/agents/scout.md"]) {
+    const s = readFileSync(script(f), "utf8");
+    assert.match(s, /^description: .*question about files you name/m, f);
+    assert.match(s, /do not search/, f);
+    assert.match(s, /Cannot read <path>\./, f);
+  }
 });
 
 test("ReadSymbol: returns exactly one declaration with line numbers", () => {
@@ -423,8 +447,22 @@ test("session start: repomap and tips follow the flags; unstable adds a timestam
   assert.match(ctx("repomap"), /Repo map/);
   assert.doesNotMatch(ctx(""), /Repo map/);
   assert.match(ctx("batchedit"), /BatchEdit/);
+  assert.match(ctx("writer"), /lean:writer/);
+  assert.doesNotMatch(ctx("batchedit"), /lean:writer/);
   assert.equal(ctx("slim"), "");
   assert.match(ctx("unstable"), /Session started \d{4}-/);
+});
+
+test("writer agent: ships for both hosts, cheap model, can only read and write", () => {
+  const front = (p) => readFileSync(script(p), "utf8").split("---")[1];
+  const cc = front("agents/writer.md");
+  assert.match(cc, /^name: writer$/m);
+  assert.match(cc, /^model: haiku$/m);
+  assert.match(cc, /^tools: mcp__plugin_lean_tools__MultiRead, Read, Write$/m);
+  const cursor = front("cursor/agents/writer.md");
+  assert.match(cursor, /^name: writer$/m);
+  assert.match(cursor, /^model: fast$/m);
+  assert.doesNotMatch(cursor, /readonly: true/);
 });
 
 test("session start: nothing is re-injected on resume", () => {

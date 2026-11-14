@@ -22,6 +22,7 @@ const parts = [];
 if (!has("slim")) parts.push("lean plugin: prefer MultiRead to read several files in one call, and RunCompact for tests/builds with long output.");
 if (has("outline")) parts.push("Use Outline before reading a large file, then read only the line range you need.");
 if (has("batchedit")) parts.push("When a change needs more than one edit, make all of them in a single BatchEdit call (no Read needed; copy the old text from Grep output).");
+if (has("writer")) parts.push("For a new file that is mostly predictable from existing ones (tests, fixtures, stubs, config), delegate to the lean:writer agent: give it the spec, the reference and source file paths and the target path, and do not read those files yourself first. Its reply is one line; spot-check the file with Grep and fix anything with small edits.");
 if (has("unstable")) parts.push(`Session started ${new Date().toISOString()}.`); // prompt-cache experiment
 if (notes) parts.push(`Project notes (.claude/lean-notes.md):\n${notes}`);
 if (has("repomap")) {

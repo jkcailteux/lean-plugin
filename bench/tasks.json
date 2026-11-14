@@ -50,5 +50,26 @@
     "prompt": "Make these changes one at a time, running `npm test` after each and fixing anything that breaks before moving on: (1) one test currently fails; fix the bug in src/ that causes it, without changing tests; (2) add an optional second parameter `currency` to formatCurrency in src/money.js, default \"USD\"; \"EUR\" uses a € prefix instead of $; (3) make buildReport in src/report.js pass each order's `currency` field to formatCurrency (the TOTAL line stays USD); (4) add a test for EUR formatting to test/money.test.js. Reply with one line when everything passes.",
     "allowed": "Read,Grep,Glob,Edit,Write,Bash(npm test:*),Bash(node --test:*),mcp__plugin_lean_tools__MultiRead,mcp__plugin_lean_tools__RunCompact,mcp__plugin_lean_tools__ReadSymbol,mcp__plugin_lean_tools__BatchEdit",
     "check": "npm test >/dev/null 2>&1 && grep -q EUR test/money.test.js && grep -q currency src/report.js && git diff --quiet HEAD -- test/engine.test.js test/report.test.js"
+  },
+  {
+    "id": "f-gen",
+    "repo": "fixture",
+    "prompt": "Create test/rules-threshold.test.js in the style of test/engine.test.js. For every ruleNNN function exported from src/engine.js (there are 160) write one explicit test() call, with no loops or generated tests. Title each test exactly `ruleNNN needs N items and $T`, where N is that rule's minimum item count and T its subtotal threshold as written in the source. Each test asserts that the rule returns 0 for an order with a single item priced one dollar under T (qty 1, no tags), with the price written as a literal number. Do not run anything. Reply with one line.",
+    "allowed": "Read,Grep,Glob,Edit,Write,mcp__plugin_lean_tools__MultiRead,mcp__plugin_lean_tools__BatchEdit",
+    "check": "node --test test/rules-threshold.test.js >/dev/null 2>&1 || { echo tests fail; exit 1; }; node -e 'const fs=require(\"fs\"),s=fs.readFileSync(\"src/engine.js\",\"utf8\"),t=fs.readFileSync(\"test/rules-threshold.test.js\",\"utf8\");let n=0,bad=[];for(const m of s.matchAll(/export function (rule\\d+)\\(order\\) \\{[^]*?length < (\\d+)\\)[^]*?subtotal < (\\d+)\\)/g)){n++;if(!t.includes(m[1]+\" needs \"+m[2]+\" items and $\"+m[3]+\"\\\"\"))bad.push(m[1])}if(n!==160||bad.length){console.log(\"wrong or missing: \"+bad.length+\" of \"+n);process.exit(1)}'"
+  },
+  {
+    "id": "f-bigq",
+    "repo": "fixture",
+    "prompt": "Two questions about src/engine.js. (1) Among the rules that credit items tagged \"gift\", which rule gives the highest credit per tagged item, and how much is it? (2) What does shipping cost for a UK order below the free-shipping threshold that contains a bulk item? Reply with just the two answers.",
+    "allowed": "Read,Grep,Glob,mcp__plugin_lean_tools__MultiRead,mcp__plugin_lean_tools__Outline,mcp__plugin_lean_tools__ReadSymbol",
+    "expect": ["rule075", "0\\.40?\\b", "\\b12\\b"]
+  },
+  {
+    "id": "f-neg",
+    "repo": "fixture",
+    "prompt": "In src/money.js, make formatCurrency render negative amounts in parentheses, so -3 becomes ($3.00) instead of -$3.00, and update the one test in test/money.test.js that covers negatives. Change nothing else and do not run anything. Reply with one line.",
+    "allowed": "Read,Grep,Glob,Edit,Write,mcp__plugin_lean_tools__MultiRead,mcp__plugin_lean_tools__ReadSymbol,mcp__plugin_lean_tools__BatchEdit",
+    "check": "node --test --test-name-pattern=negatives test/money.test.js >/dev/null 2>&1 && grep -qF '($3.00)' test/money.test.js && git diff --quiet HEAD -- src/engine.js test/engine.test.js"
   }
 ]

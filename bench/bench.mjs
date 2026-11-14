@@ -9,6 +9,12 @@
 //   NAME            lean plugin with its default features (features.json)
 //   NAME=f1+f2      lean plugin with exactly these features (LEAN_FEATURES)
 //
+// A task's "allowedWith": {"flag": "Tool,..."} allows extra tools only in arms whose feature
+// list names that flag, and passes them to --disallowedTools in every other arm. "agent" is a
+// built-in flag of that kind for every task: lean ignores it, and it lets an arm spawn subagents
+// (lean:scout, lean:writer), as a real session can. Leaving Agent out of --allowedTools is not
+// enough: on 2.1.322 a session can spawn a subagent without it.
+//
 // "Vanilla" means user settings, user plugins, user hooks and claude.ai connectors are all off
 // (--setting-sources project,local + ENABLE_CLAUDEAI_MCP_SERVERS=false), in every arm.
 // Each arm works in its own throwaway clone of the repo, reset after every run, and arms run
@@ -52,7 +58,12 @@ const fixtureSrc = join(work, "fixture-src");
 if (tasks.some((t) => t.repo === "fixture")) generate(fixtureSrc);
 
 function claude(arm, task, clone, tag) {
-  const cli = ["-p", "--output-format", "json", "--setting-sources", "project,local", "--allowedTools", task.allowed];
+  const flags = (arm.features ?? "").split("+");
+  const gated = Object.entries({ agent: "Agent,Task", ...task.allowedWith });
+  const extra = gated.filter(([flag]) => flags.includes(flag)).map(([, tools]) => tools);
+  const denied = gated.filter(([flag]) => !flags.includes(flag)).map(([, tools]) => tools);
+  const cli = ["-p", "--output-format", "json", "--setting-sources", "project,local", "--allowedTools", [task.allowed, ...extra].join(",")];
+  if (denied.length) cli.push("--disallowedTools", denied.join(","));
   if (arm.plugin) cli.push("--plugin-dir", plugin);
   const env = {
     ...process.env,
@@ -146,6 +157,7 @@ const METRICS = [
   ["input tok", (r) => (u(r).input_tokens ?? 0) + (u(r).cache_creation_input_tokens ?? 0) + (u(r).cache_read_input_tokens ?? 0), 0],
   ["cache write tok", (r) => u(r).cache_creation_input_tokens ?? 0, 0],
   ["output tok", (r) => u(r).output_tokens ?? 0, 0],
+  ["subagents", (r) => r.subagent_stats?.spawned ?? 0, 1],
 ];
 const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : NaN);
 const sd = (xs) => (xs.length > 1 ? Math.sqrt(xs.reduce((a, x) => a + (x - mean(xs)) ** 2, 0) / (xs.length - 1)) : 0);
