@@ -1,6 +1,6 @@
 {
   "name": "lean",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Benchmarked token and turn savings for Claude Code: repo map, BatchEdit, context guard, batched reads, compact command output, and usage stats. No telemetry.",
   "author": { "name": "Jeff Cailteux" },
   "homepage": "https://jkcailteux.github.io/lean-plugin/",
